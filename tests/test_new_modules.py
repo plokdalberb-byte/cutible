@@ -1,5 +1,6 @@
 """Tests for the new modules: ingest, index, high-level verbs, agents, etc."""
 
+import importlib.util
 import math
 import os
 import json
@@ -356,6 +357,10 @@ def test_llm_client_unavailable():
 # --------------------------------------------------------------------------- #
 # OTIO bridge
 # --------------------------------------------------------------------------- #
+_has_otio = importlib.util.find_spec("opentimelineio") is not None
+
+
+@pytest.mark.skipif(not _has_otio, reason="opentimelineio not installed")
 def test_otio_export_import_roundtrip(tmp_path):
     from cutible.otio_bridge import OTIOExporter, OTIOImporter
     ed = Editor(Project(id="otio_test"))
@@ -375,6 +380,7 @@ def test_otio_export_import_roundtrip(tmp_path):
     assert len(imported.tracks) > 0
 
 
+@pytest.mark.skipif(not _has_otio, reason="opentimelineio not installed")
 def test_otio_has_schema_tags(tmp_path):
     """Verify exported OTIO has proper schema tags."""
     from cutible.otio_bridge import OTIOExporter
