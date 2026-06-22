@@ -1,0 +1,205 @@
+{
+  "id": "recap_demo",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "aspect": "16:9",
+  "assets": [
+    {
+      "id": "title",
+      "type": "image",
+      "uri": "/home/user/cutible/examples/assets/titlecard.png",
+      "duration": null,
+      "color": "black",
+      "index_ref": null
+    },
+    {
+      "id": "cam_a",
+      "type": "video",
+      "uri": "/home/user/cutible/examples/assets/speaker_a.mp4",
+      "duration": 10.0,
+      "color": "black",
+      "index_ref": null
+    },
+    {
+      "id": "cam_b",
+      "type": "video",
+      "uri": "/home/user/cutible/examples/assets/speaker_b.mp4",
+      "duration": 10.0,
+      "color": "black",
+      "index_ref": null
+    },
+    {
+      "id": "bed",
+      "type": "audio",
+      "uri": "/home/user/cutible/examples/assets/music.m4a",
+      "duration": 30.0,
+      "color": "black",
+      "index_ref": null
+    }
+  ],
+  "tracks": [
+    {
+      "id": "v_main",
+      "kind": "video",
+      "clips": [
+        {
+          "id": "clip_1",
+          "asset": "title",
+          "src_in": 0.0,
+          "src_out": 3.0,
+          "timeline_in": 0.0,
+          "speed": 1.0,
+          "volume": 1.0,
+          "transform": {
+            "scale": 1.0,
+            "pos_x": 0,
+            "pos_y": 0,
+            "crop_w": null,
+            "crop_h": null,
+            "crop_x": 0,
+            "crop_y": 0
+          },
+          "transition_in": 0.4,
+          "transition_out": 0.4,
+          "rationale": "branded opener / title card"
+        },
+        {
+          "id": "clip_2",
+          "asset": "cam_a",
+          "src_in": 2.0,
+          "src_out": 7.0,
+          "timeline_in": 3.0,
+          "speed": 1.0,
+          "volume": 1.0,
+          "transform": {
+            "scale": 1.0,
+            "pos_x": 0,
+            "pos_y": 0,
+            "crop_w": null,
+            "crop_h": null,
+            "crop_x": 0,
+            "crop_y": 0
+          },
+          "transition_in": 0.4,
+          "transition_out": 0.4,
+          "rationale": "A's strongest 5s — the hook"
+        },
+        {
+          "id": "clip_3",
+          "asset": "cam_b",
+          "src_in": 1.0,
+          "src_out": 6.0,
+          "timeline_in": 8.0,
+          "speed": 1.25,
+          "volume": 1.0,
+          "transform": {
+            "scale": 1.0,
+            "pos_x": 0,
+            "pos_y": 0,
+            "crop_w": null,
+            "crop_h": null,
+            "crop_x": 0,
+            "crop_y": 0
+          },
+          "transition_in": 0.4,
+          "transition_out": 0.4,
+          "rationale": "B's response, keeps momentum"
+        }
+      ],
+      "texts": []
+    },
+    {
+      "id": "captions",
+      "kind": "caption",
+      "clips": [],
+      "texts": [
+        {
+          "id": "text_4",
+          "text": "CUTIBLE · agent-made recap",
+          "timeline_in": 0.2,
+          "timeline_out": 3.0,
+          "x": "(w-text_w)/2",
+          "y": "h-th-60",
+          "font_size": 72,
+          "font_color": "white",
+          "box": true,
+          "box_color": "black@0.5"
+        },
+        {
+          "id": "text_5",
+          "text": "the hook — speaker A",
+          "timeline_in": 3.2,
+          "timeline_out": 8.0,
+          "x": "(w-text_w)/2",
+          "y": "h-th-60",
+          "font_size": 48,
+          "font_color": "white",
+          "box": true,
+          "box_color": "black@0.5"
+        },
+        {
+          "id": "text_6",
+          "text": "the response — speaker B",
+          "timeline_in": 8.2,
+          "timeline_out": 11.8,
+          "x": "(w-text_w)/2",
+          "y": "h-th-60",
+          "font_size": 48,
+          "font_color": "white",
+          "box": true,
+          "box_color": "black@0.5"
+        }
+      ]
+    },
+    {
+      "id": "music",
+      "kind": "audio",
+      "clips": [
+        {
+          "id": "clip_7",
+          "asset": "bed",
+          "src_in": 0.0,
+          "src_out": 12.0,
+          "timeline_in": 0.0,
+          "speed": 1.0,
+          "volume": 0.18,
+          "transform": {
+            "scale": 1.0,
+            "pos_x": 0,
+            "pos_y": 0,
+            "crop_w": null,
+            "crop_h": null,
+            "crop_x": 0,
+            "crop_y": 0
+          },
+          "transition_in": 0.0,
+          "transition_out": 0.0,
+          "rationale": "low ambient bed, ducked under dialogue"
+        }
+      ],
+      "texts": []
+    }
+  ],
+  "globals": {
+    "background": "black",
+    "loudness_target": -14.0,
+    "captions_style": null
+  },
+  "render_settings": {
+    "vcodec": "libx264",
+    "acodec": "aac",
+    "crf": 18,
+    "preset": "medium",
+    "pix_fmt": "yuv420p",
+    "audio_bitrate": "192k",
+    "audio_rate": 48000,
+    "container": "mp4"
+  },
+  "provenance": {
+    "agent_run_id": "run_001",
+    "prompt": "Make a ~14s recap of the two interview clips with title, captions and a music bed.",
+    "edit_plan_ref": null,
+    "model_versions": {}
+  }
+}
