@@ -1,15 +1,15 @@
 """Cutible CLI — headless "video as code" (plan §8.4).
 
-    python -m cutible render   project.json -o out.mp4
-    python -m cutible probe    project.json
-    python -m cutible view     project.json --zoom outline
-    python -m cutible qc       out.mp4 --expect 12.0
-    python -m cutible ingest   asset_id /path/to/video.mp4
-    python -m cutible search   "moment where speaker talks about AI"
-    python -m cutible agent    "make a 60s recap of this interview"
-    python -m cutible export   project.json --otio output.otio
-    python -m cutible import   input.otio --project my_project
-    python -m cutible farm     project.json -o out.mp4 --workers 4
+python -m cutible render   project.json -o out.mp4
+python -m cutible probe    project.json
+python -m cutible view     project.json --zoom outline
+python -m cutible qc       out.mp4 --expect 12.0
+python -m cutible ingest   asset_id /path/to/video.mp4
+python -m cutible search   "moment where speaker talks about AI"
+python -m cutible agent    "make a 60s recap of this interview"
+python -m cutible export   project.json --otio output.otio
+python -m cutible import   input.otio --project my_project
+python -m cutible farm     project.json -o out.mp4 --workers 4
 """
 
 from __future__ import annotations
@@ -18,9 +18,9 @@ import argparse
 import json
 import sys
 
-from .schema import Project
 from .compiler import FFmpegCompiler
 from .qc import run_qc
+from .schema import Project
 
 
 def _cmd_render(args) -> int:
@@ -29,8 +29,11 @@ def _cmd_render(args) -> int:
     result = comp.render(args.output, quiet=not args.verbose)
     print(json.dumps(result, indent=2))
     if args.qc:
-        report = run_qc(args.output, expected_duration=project.duration,
-                        loudness_target=project.globals.loudness_target)
+        report = run_qc(
+            args.output,
+            expected_duration=project.duration,
+            loudness_target=project.globals.loudness_target,
+        )
         print(json.dumps({"qc": report.to_dict()}, indent=2))
         return 0 if report.passed else 2
     return 0
@@ -46,13 +49,13 @@ def _cmd_probe(args) -> int:
 def _cmd_view(args) -> int:
     project = Project.load(args.project)
     from .verbs import Editor
+
     print(json.dumps(Editor(project).read(args.zoom), indent=2, ensure_ascii=False))
     return 0
 
 
 def _cmd_qc(args) -> int:
-    report = run_qc(args.file, expected_duration=args.expect,
-                    loudness_target=args.loudness)
+    report = run_qc(args.file, expected_duration=args.expect, loudness_target=args.loudness)
     print(json.dumps(report.to_dict(), indent=2))
     return 0 if report.passed else 2
 
@@ -60,6 +63,7 @@ def _cmd_qc(args) -> int:
 def _cmd_ingest(args) -> int:
     from .ingest import IngestPipeline
     from .ingest.pipeline import IngestConfig
+
     pipeline = IngestPipeline(IngestConfig(index_dir=args.index_dir))
     result = pipeline.ingest_asset(args.asset_id, args.uri)
     print(json.dumps(result.to_dict(), indent=2))
@@ -69,6 +73,7 @@ def _cmd_ingest(args) -> int:
 def _cmd_build_index(args) -> int:
     from .ingest import IngestPipeline
     from .ingest.pipeline import IngestConfig
+
     pipeline = IngestPipeline(IngestConfig(index_dir=args.index_dir))
     narrative = pipeline.build_narrative(args.project_id)
     print(json.dumps(narrative.summary(), indent=2))
@@ -76,19 +81,27 @@ def _cmd_build_index(args) -> int:
 
 
 def _cmd_search(args) -> int:
-    from .index import IndexStore, IndexSearcher
+    from .index import IndexSearcher, IndexStore
+
     store = IndexStore(args.index_dir)
     searcher = IndexSearcher(store)
     results = searcher.search_text(args.query)
-    print(json.dumps({"query": args.query, "n_results": len(results),
-                       "results": results[:20]}, indent=2, ensure_ascii=False))
+    print(
+        json.dumps(
+            {"query": args.query, "n_results": len(results), "results": results[:20]},
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 
 def _cmd_agent(args) -> int:
+    import os
+
     from .agents.orchestrator import Orchestrator
     from .schema import Project
-    import os
+
     openai_key = os.environ.get("OPENAI_API_KEY")
     openai_base = os.environ.get("OPENAI_BASE_URL")
     openai_model = os.environ.get("OPENAI_MODEL")
@@ -119,6 +132,7 @@ def _cmd_agent(args) -> int:
 
 def _cmd_export_otio(args) -> int:
     from .otio_bridge import OTIOExporter
+
     project = Project.load(args.project)
     exporter = OTIOExporter(project)
     result = exporter.export(args.output)
@@ -128,20 +142,25 @@ def _cmd_export_otio(args) -> int:
 
 def _cmd_import_otio(args) -> int:
     from .otio_bridge import OTIOImporter
+
     importer = OTIOImporter()
     project = importer.import_file(args.otio_path, args.project_id)
     if args.save:
         project.save(args.save)
-        print(json.dumps({"imported": args.otio_path, "saved": args.save,
-                           "summary": project.summary()}, indent=2))
+        print(
+            json.dumps(
+                {"imported": args.otio_path, "saved": args.save, "summary": project.summary()},
+                indent=2,
+            )
+        )
     else:
-        print(json.dumps({"imported": args.otio_path,
-                           "summary": project.summary()}, indent=2))
+        print(json.dumps({"imported": args.otio_path, "summary": project.summary()}, indent=2))
     return 0
 
 
 def _cmd_farm(args) -> int:
     from .render_farm import RenderFarmManager
+
     project = Project.load(args.project)
     farm = RenderFarmManager(n_workers=args.workers)
     result = farm.render(project, args.output)
@@ -151,6 +170,7 @@ def _cmd_farm(args) -> int:
 
 def _cmd_farm_dry_run(args) -> int:
     from .render_farm import RenderFarmManager
+
     project = Project.load(args.project)
     farm = RenderFarmManager(n_workers=args.workers)
     result = farm.render_dry_run(project)
@@ -160,8 +180,10 @@ def _cmd_farm_dry_run(args) -> int:
 
 def _cmd_serve_api(args) -> int:
     from .api.app import create_app
+
     try:
         import uvicorn
+
         app = create_app()
         uvicorn.run(app, host=args.host, port=args.port)
     except ImportError:
@@ -174,10 +196,12 @@ def serve_api():
     """Entry point for cutible-api console script."""
     try:
         from dotenv import load_dotenv
+
         load_dotenv()
     except ImportError:
         pass
     import argparse
+
     p = argparse.ArgumentParser(prog="cutible-api")
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8000)
@@ -188,6 +212,7 @@ def serve_api():
 def main(argv=None) -> int:
     try:
         from dotenv import load_dotenv
+
         load_dotenv()
     except ImportError:
         pass
@@ -236,8 +261,11 @@ def main(argv=None) -> int:
     ag.add_argument("brief")
     ag.add_argument("-o", "--output", default="project.json", help="output project file")
     ag.add_argument("--duration", type=float, default=60.0, help="target duration (s)")
-    ag.add_argument("--style", default="informative",
-                    choices=["informative", "energetic", "calm", "professional", "humorous"])
+    ag.add_argument(
+        "--style",
+        default="informative",
+        choices=["informative", "energetic", "calm", "professional", "humorous"],
+    )
     ag.add_argument("--max-iterations", type=int, default=3)
     ag.add_argument("--index-dir", default=".cutible/index", help="path to semantic media index")
     ag.set_defaults(func=_cmd_agent)

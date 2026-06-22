@@ -6,11 +6,10 @@ Detects shot boundaries and groups them into scenes.
 from __future__ import annotations
 
 import logging
-import subprocess
 import re
-from typing import Optional
+import subprocess
 
-from ..index.models import Scene, Shot, VisualDescription
+from ..index.models import Scene, Shot
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +35,21 @@ class SceneDetector:
     def _detect_shots_ffmpeg(self, uri: str, asset_id: str) -> list[Shot]:
         """Use ffmpeg's scene detection filter to find shot boundaries."""
         cmd = [
-            "ffmpeg", "-hide_banner", "-nostdin",
-            "-i", uri,
-            "-vf", f"select='gt(scene,{self.threshold})',showinfo",
-            "-f", "null", "-",
+            "ffmpeg",
+            "-hide_banner",
+            "-nostdin",
+            "-i",
+            uri,
+            "-vf",
+            f"select='gt(scene,{self.threshold})',showinfo",
+            "-f",
+            "null",
+            "-",
         ]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300,
-                                   encoding="utf-8", errors="replace")
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=300, encoding="utf-8", errors="replace"
+            )
             timestamps = [0.0]
             for line in proc.stderr.splitlines():
                 m = re.search(r"pts_time:(\d+\.?\d*)", line)
@@ -55,18 +61,19 @@ class SceneDetector:
             timestamps.append(duration)
             shots = []
             for i in range(len(timestamps) - 1):
-                shots.append(Shot(
-                    id=f"{asset_id}_shot_{i}",
-                    asset_id=asset_id,
-                    start=timestamps[i],
-                    end=timestamps[i + 1],
-                ))
+                shots.append(
+                    Shot(
+                        id=f"{asset_id}_shot_{i}",
+                        asset_id=asset_id,
+                        start=timestamps[i],
+                        end=timestamps[i + 1],
+                    )
+                )
             return shots
         except Exception as e:
             logger.warning(f"  Scene detection failed: {e}, creating single shot")
             duration = self._get_duration(uri)
-            return [Shot(id=f"{asset_id}_shot_0", asset_id=asset_id,
-                         start=0.0, end=duration)]
+            return [Shot(id=f"{asset_id}_shot_0", asset_id=asset_id, start=0.0, end=duration)]
 
     def _group_into_scenes(self, shots: list[Shot], asset_id: str) -> list[Scene]:
         """Group shots into semantic scenes using temporal proximity."""
@@ -77,33 +84,44 @@ class SceneDetector:
         for shot in shots[1:]:
             gap = shot.start - current_shots[-1].end
             if gap > 5.0 or (len(current_shots) >= 10):
-                scenes.append(Scene(
-                    id=f"{asset_id}_scene_{len(scenes)}",
-                    asset_id=asset_id,
-                    start=current_shots[0].start,
-                    end=current_shots[-1].end,
-                    shots=current_shots,
-                ))
+                scenes.append(
+                    Scene(
+                        id=f"{asset_id}_scene_{len(scenes)}",
+                        asset_id=asset_id,
+                        start=current_shots[0].start,
+                        end=current_shots[-1].end,
+                        shots=current_shots,
+                    )
+                )
                 current_shots = [shot]
             else:
                 current_shots.append(shot)
-        scenes.append(Scene(
-            id=f"{asset_id}_scene_{len(scenes)}",
-            asset_id=asset_id,
-            start=current_shots[0].start,
-            end=current_shots[-1].end,
-            shots=current_shots,
-        ))
+        scenes.append(
+            Scene(
+                id=f"{asset_id}_scene_{len(scenes)}",
+                asset_id=asset_id,
+                start=current_shots[0].start,
+                end=current_shots[-1].end,
+                shots=current_shots,
+            )
+        )
         return scenes
 
     def _get_duration(self, uri: str) -> float:
         cmd = [
-            "ffprobe", "-v", "quiet", "-show_entries", "format=duration",
-            "-of", "csv=p=0", uri,
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "csv=p=0",
+            uri,
         ]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
-                                   encoding="utf-8", errors="replace")
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace"
+            )
             return float(proc.stdout.strip())
         except Exception:
             return 0.0

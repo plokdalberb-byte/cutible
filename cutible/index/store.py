@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import math
 import os
-from typing import Optional
 
 from .models import AssetIndex, NarrativeIndex
 
@@ -21,7 +20,7 @@ class IndexStore:
         self.base_dir = base_dir
         os.makedirs(base_dir, exist_ok=True)
         self._indices: dict[str, AssetIndex] = {}
-        self._narrative: Optional[NarrativeIndex] = None
+        self._narrative: NarrativeIndex | None = None
         self._embeddings: dict[str, list[float]] = {}
         self._load_embeddings()
 
@@ -32,12 +31,12 @@ class IndexStore:
         with open(path, "w", encoding="utf-8") as f:
             f.write(index.model_dump_json(indent=2))
 
-    def load_asset_index(self, asset_id: str) -> Optional[AssetIndex]:
+    def load_asset_index(self, asset_id: str) -> AssetIndex | None:
         if asset_id in self._indices:
             return self._indices[asset_id]
         path = self._asset_path(asset_id)
         if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 index = AssetIndex.model_validate_json(f.read())
             self._indices[asset_id] = index
             return index
@@ -49,12 +48,12 @@ class IndexStore:
         with open(path, "w", encoding="utf-8") as f:
             f.write(narrative.model_dump_json(indent=2))
 
-    def load_narrative(self) -> Optional[NarrativeIndex]:
+    def load_narrative(self) -> NarrativeIndex | None:
         if self._narrative is not None:
             return self._narrative
         path = os.path.join(self.base_dir, "narrative.json")
         if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 self._narrative = NarrativeIndex.model_validate_json(f.read())
             return self._narrative
         return None
@@ -63,11 +62,7 @@ class IndexStore:
         indices_dir = os.path.join(self.base_dir, "assets")
         if not os.path.exists(indices_dir):
             return []
-        return [
-            d.replace(".json", "")
-            for d in os.listdir(indices_dir)
-            if d.endswith(".json")
-        ]
+        return [d.replace(".json", "") for d in os.listdir(indices_dir) if d.endswith(".json")]
 
     def delete_asset(self, asset_id: str) -> bool:
         self._indices.pop(asset_id, None)
@@ -114,7 +109,7 @@ class IndexStore:
     def _load_embeddings(self) -> None:
         path = self._embeddings_path()
         if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 self._embeddings = json.load(f)
 
     def _save_embeddings(self) -> None:
@@ -127,7 +122,7 @@ class IndexStore:
         self._embeddings[ref] = vector
         self._save_embeddings()
 
-    def load_embedding(self, ref: str) -> Optional[list[float]]:
+    def load_embedding(self, ref: str) -> list[float] | None:
         """Load an embedding vector by reference string."""
         return self._embeddings.get(ref)
 
@@ -135,9 +130,9 @@ class IndexStore:
         """Return all stored embeddings."""
         return dict(self._embeddings)
 
-    def search_semantic(self, query_vector: list[float],
-                        top_k: int = 10,
-                        min_score: float = 0.3) -> list[dict]:
+    def search_semantic(
+        self, query_vector: list[float], top_k: int = 10, min_score: float = 0.3
+    ) -> list[dict]:
         """Find the most similar embeddings using cosine similarity.
 
         Returns a list of {ref, score, vector} dicts sorted by score desc.
@@ -153,7 +148,7 @@ class IndexStore:
         for ref, vec in self._embeddings.items():
             if len(vec) != len(query_vector):
                 continue
-            dot = sum(a * b for a, b in zip(query_vector, vec))
+            dot = sum(a * b for a, b in zip(query_vector, vec, strict=False))
             v_norm = math.sqrt(sum(x * x for x in vec))
             if v_norm == 0:
                 continue

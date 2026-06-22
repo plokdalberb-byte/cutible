@@ -24,12 +24,11 @@ Usage::
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
 
-from ..schema import Project
-from ..verbs import Editor
 from ..compiler import FFmpegCompiler
 from ..qc import run_qc
+from ..schema import Project
+from ..verbs import Editor
 
 
 class CutibleClient:
@@ -38,24 +37,40 @@ class CutibleClient:
     Supports both in-process and HTTP-based operation.
     """
 
-    def __init__(self, api_url: Optional[str] = None):
+    def __init__(self, api_url: str | None = None):
         self.api_url = api_url.rstrip("/") if api_url else None
-        self._editor: Optional[Editor] = None
-        self._project_id: Optional[str] = None
+        self._editor: Editor | None = None
+        self._project_id: str | None = None
 
         if not self.api_url:
             self._session: dict[str, Editor] = {}
 
-    def create_project(self, project_id: str, fps: int = 30,
-                       width: int = 1920, height: int = 1080,
-                       prompt: str = "") -> dict:
+    def create_project(
+        self,
+        project_id: str,
+        fps: int = 30,
+        width: int = 1920,
+        height: int = 1080,
+        prompt: str = "",
+    ) -> dict:
         if self.api_url:
-            return self._http_post("/projects", {
-                "id": project_id, "fps": fps, "width": width,
-                "height": height, "prompt": prompt,
-            })
-        project = Project(id=project_id, fps=fps, width=width, height=height,
-                          provenance={"prompt": prompt} if prompt else {})
+            return self._http_post(
+                "/projects",
+                {
+                    "id": project_id,
+                    "fps": fps,
+                    "width": width,
+                    "height": height,
+                    "prompt": prompt,
+                },
+            )
+        project = Project(
+            id=project_id,
+            fps=fps,
+            width=width,
+            height=height,
+            provenance={"prompt": prompt} if prompt else {},
+        )
         self._editor = Editor(project)
         self._session[project_id] = self._editor
         self._project_id = project_id
@@ -75,16 +90,26 @@ class CutibleClient:
             return self._http_get(f"/projects/{self._project_id}", {"zoom": zoom})
         return self._editor.read(zoom)
 
-    def add_asset(self, asset_id: str, asset_type: str,
-                  uri: Optional[str] = None, duration: Optional[float] = None,
-                  color: str = "black") -> dict:
+    def add_asset(
+        self,
+        asset_id: str,
+        asset_type: str,
+        uri: str | None = None,
+        duration: float | None = None,
+        color: str = "black",
+    ) -> dict:
         if self.api_url:
-            return self._apply_verb("add_asset", {
-                "asset_id": asset_id, "type": asset_type,
-                "uri": uri, "duration": duration, "color": color,
-            })
-        diff = self._editor.add_asset(asset_id, asset_type, uri=uri,
-                                       duration=duration, color=color)
+            return self._apply_verb(
+                "add_asset",
+                {
+                    "asset_id": asset_id,
+                    "type": asset_type,
+                    "uri": uri,
+                    "duration": duration,
+                    "color": color,
+                },
+            )
+        diff = self._editor.add_asset(asset_id, asset_type, uri=uri, duration=duration, color=color)
         return diff.to_dict()
 
     def add_track(self, track_id: str, kind: str) -> dict:
@@ -93,35 +118,65 @@ class CutibleClient:
         diff = self._editor.add_track(track_id, kind)
         return diff.to_dict()
 
-    def add_clip(self, track_id: str, asset: str, src_in: float = 0,
-                 src_out: Optional[float] = None, timeline_in: Optional[float] = None,
-                 speed: float = 1.0, volume: float = 1.0,
-                 rationale: Optional[str] = None) -> dict:
+    def add_clip(
+        self,
+        track_id: str,
+        asset: str,
+        src_in: float = 0,
+        src_out: float | None = None,
+        timeline_in: float | None = None,
+        speed: float = 1.0,
+        volume: float = 1.0,
+        rationale: str | None = None,
+    ) -> dict:
         if self.api_url:
-            return self._apply_verb("add_clip", {
-                "track_id": track_id, "asset": asset, "src_in": src_in,
-                "src_out": src_out, "timeline_in": timeline_in,
-                "speed": speed, "volume": volume, "rationale": rationale,
-            })
-        diff = self._editor.add_clip(track_id, asset, src_in=src_in,
-                                      src_out=src_out, timeline_in=timeline_in,
-                                      speed=speed, volume=volume, rationale=rationale)
+            return self._apply_verb(
+                "add_clip",
+                {
+                    "track_id": track_id,
+                    "asset": asset,
+                    "src_in": src_in,
+                    "src_out": src_out,
+                    "timeline_in": timeline_in,
+                    "speed": speed,
+                    "volume": volume,
+                    "rationale": rationale,
+                },
+            )
+        diff = self._editor.add_clip(
+            track_id,
+            asset,
+            src_in=src_in,
+            src_out=src_out,
+            timeline_in=timeline_in,
+            speed=speed,
+            volume=volume,
+            rationale=rationale,
+        )
         return diff.to_dict()
 
-    def trim(self, clip_id: str, src_in: Optional[float] = None,
-             src_out: Optional[float] = None) -> dict:
+    def trim(self, clip_id: str, src_in: float | None = None, src_out: float | None = None) -> dict:
         if self.api_url:
-            return self._apply_verb("trim", {
-                "clip_id": clip_id, "src_in": src_in, "src_out": src_out,
-            })
+            return self._apply_verb(
+                "trim",
+                {
+                    "clip_id": clip_id,
+                    "src_in": src_in,
+                    "src_out": src_out,
+                },
+            )
         diff = self._editor.trim(clip_id, src_in=src_in, src_out=src_out)
         return diff.to_dict()
 
     def move(self, clip_id: str, timeline_in: float) -> dict:
         if self.api_url:
-            return self._apply_verb("move", {
-                "clip_id": clip_id, "timeline_in": timeline_in,
-            })
+            return self._apply_verb(
+                "move",
+                {
+                    "clip_id": clip_id,
+                    "timeline_in": timeline_in,
+                },
+            )
         diff = self._editor.move(clip_id, timeline_in)
         return diff.to_dict()
 
@@ -137,39 +192,65 @@ class CutibleClient:
         diff = self._editor.ripple_delete(clip_id)
         return diff.to_dict()
 
-    def add_transition(self, clip_id: str, kind: str = "in",
-                       duration: float = 0.5) -> dict:
+    def add_transition(self, clip_id: str, kind: str = "in", duration: float = 0.5) -> dict:
         if self.api_url:
-            return self._apply_verb("add_transition", {
-                "clip_id": clip_id, "kind": kind, "duration": duration,
-            })
+            return self._apply_verb(
+                "add_transition",
+                {
+                    "clip_id": clip_id,
+                    "kind": kind,
+                    "duration": duration,
+                },
+            )
         diff = self._editor.add_transition(clip_id, kind, duration)
         return diff.to_dict()
 
-    def add_text_layer(self, track_id: str, text: str,
-                       timeline_in: float, timeline_out: float,
-                       **style) -> dict:
+    def add_text_layer(
+        self, track_id: str, text: str, timeline_in: float, timeline_out: float, **style
+    ) -> dict:
         if self.api_url:
-            return self._apply_verb("add_text_layer", {
-                "track_id": track_id, "text": text,
-                "timeline_in": timeline_in, "timeline_out": timeline_out,
-                **style,
-            })
-        diff = self._editor.add_text_layer(track_id, text, timeline_in,
-                                            timeline_out, **style)
+            return self._apply_verb(
+                "add_text_layer",
+                {
+                    "track_id": track_id,
+                    "text": text,
+                    "timeline_in": timeline_in,
+                    "timeline_out": timeline_out,
+                    **style,
+                },
+            )
+        diff = self._editor.add_text_layer(track_id, text, timeline_in, timeline_out, **style)
         return diff.to_dict()
 
-    def add_audio(self, asset: str, src_in: float = 0,
-                  src_out: Optional[float] = None, timeline_in: float = 0,
-                  volume: float = 1.0, track_id: str = "music") -> dict:
+    def add_audio(
+        self,
+        asset: str,
+        src_in: float = 0,
+        src_out: float | None = None,
+        timeline_in: float = 0,
+        volume: float = 1.0,
+        track_id: str = "music",
+    ) -> dict:
         if self.api_url:
-            return self._apply_verb("add_audio", {
-                "asset": asset, "src_in": src_in, "src_out": src_out,
-                "timeline_in": timeline_in, "volume": volume, "track_id": track_id,
-            })
-        diff = self._editor.add_audio(asset, src_in=src_in, src_out=src_out,
-                                       timeline_in=timeline_in, volume=volume,
-                                       track_id=track_id)
+            return self._apply_verb(
+                "add_audio",
+                {
+                    "asset": asset,
+                    "src_in": src_in,
+                    "src_out": src_out,
+                    "timeline_in": timeline_in,
+                    "volume": volume,
+                    "track_id": track_id,
+                },
+            )
+        diff = self._editor.add_audio(
+            asset,
+            src_in=src_in,
+            src_out=src_out,
+            timeline_in=timeline_in,
+            volume=volume,
+            track_id=track_id,
+        )
         return diff.to_dict()
 
     def set_speed(self, clip_id: str, speed: float) -> dict:
@@ -198,22 +279,33 @@ class CutibleClient:
 
     def render(self, output: str, run_qc: bool = True) -> dict:
         if self.api_url:
-            return self._http_post(f"/projects/{self._project_id}/render", {
-                "output": output, "run_qc": run_qc,
-            })
+            return self._http_post(
+                f"/projects/{self._project_id}/render",
+                {
+                    "output": output,
+                    "run_qc": run_qc,
+                },
+            )
         compiler = FFmpegCompiler(self._editor.project)
         result = compiler.render(output)
         if run_qc:
-            report = run_qc(output, expected_duration=self._editor.project.duration,
-                            loudness_target=self._editor.project.globals.loudness_target)
+            report = run_qc(
+                output,
+                expected_duration=self._editor.project.duration,
+                loudness_target=self._editor.project.globals.loudness_target,
+            )
             result["qc"] = report.to_dict()
         return result
 
-    def qc(self, file: str, expected_duration: Optional[float] = None) -> dict:
+    def qc(self, file: str, expected_duration: float | None = None) -> dict:
         if self.api_url:
-            return self._http_post("/qc", {
-                "file": file, "expected_duration": expected_duration,
-            })
+            return self._http_post(
+                "/qc",
+                {
+                    "file": file,
+                    "expected_duration": expected_duration,
+                },
+            )
         report = run_qc(file, expected_duration=expected_duration)
         return report.to_dict()
 
@@ -225,34 +317,50 @@ class CutibleClient:
 
     def export_otio(self, output_path: str) -> dict:
         from ..otio_bridge import OTIOExporter
+
         if self.api_url:
-            return self._http_get(f"/projects/{self._project_id}/otio",
-                                   {"output_path": output_path})
+            return self._http_get(
+                f"/projects/{self._project_id}/otio", {"output_path": output_path}
+            )
         exporter = OTIOExporter(self._editor.project)
         return exporter.export(output_path)
 
-    def import_otio(self, otio_path: str, project_id: Optional[str] = None) -> dict:
+    def import_otio(self, otio_path: str, project_id: str | None = None) -> dict:
         from ..otio_bridge import OTIOImporter
+
         if self.api_url:
-            return self._http_post(f"/projects/{self._project_id}/otio/import",
-                                    {"otio_path": otio_path})
+            return self._http_post(
+                f"/projects/{self._project_id}/otio/import", {"otio_path": otio_path}
+            )
         importer = OTIOImporter()
         project = importer.import_file(otio_path, project_id)
         self._editor = Editor(project)
         self._project_id = project.id
         return {"imported": otio_path, "summary": project.summary()}
 
-    def run_agent(self, brief: str, target_duration: float = 60.0,
-                  style: str = "informative", max_iterations: int = 3,
-                  index_dir: str = ".cutible/index") -> dict:
+    def run_agent(
+        self,
+        brief: str,
+        target_duration: float = 60.0,
+        style: str = "informative",
+        max_iterations: int = 3,
+        index_dir: str = ".cutible/index",
+    ) -> dict:
         if self.api_url:
-            return self._http_post("/agent/run", {
-                "brief": brief, "target_duration": target_duration,
-                "style": style, "max_iterations": max_iterations,
-                "index_dir": index_dir,
-            })
+            return self._http_post(
+                "/agent/run",
+                {
+                    "brief": brief,
+                    "target_duration": target_duration,
+                    "style": style,
+                    "max_iterations": max_iterations,
+                    "index_dir": index_dir,
+                },
+            )
         import os
+
         from ..agents.orchestrator import Orchestrator
+
         openai_key = os.environ.get("OPENAI_API_KEY")
         openai_base = os.environ.get("OPENAI_BASE_URL")
         openai_model = os.environ.get("OPENAI_MODEL")
@@ -263,17 +371,24 @@ class CutibleClient:
             openai_model=openai_model,
         )
         return orchestrator.run(
-            brief=brief, target_duration=target_duration, style=style,
+            brief=brief,
+            target_duration=target_duration,
+            style=style,
             index_dir=index_dir,
         )
 
     def _apply_verb(self, verb: str, args: dict) -> dict:
-        return self._http_post(f"/projects/{self._project_id}/verbs", {
-            "verb": verb, "args": args,
-        })
+        return self._http_post(
+            f"/projects/{self._project_id}/verbs",
+            {
+                "verb": verb,
+                "args": args,
+            },
+        )
 
-    def _http_get(self, path: str, params: Optional[dict] = None) -> dict:
+    def _http_get(self, path: str, params: dict | None = None) -> dict:
         import urllib.request
+
         url = f"{self.api_url}{path}"
         if params:
             query = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
@@ -284,6 +399,7 @@ class CutibleClient:
 
     def _http_post(self, path: str, data: dict) -> dict:
         import urllib.request
+
         url = f"{self.api_url}{path}"
         req = urllib.request.Request(
             url,

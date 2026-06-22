@@ -9,11 +9,10 @@ from __future__ import annotations
 import logging
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
-from .worker import SegmentTask, SegmentResult
+from .worker import SegmentResult, SegmentTask
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +31,8 @@ class ScheduledTask:
 
     task: SegmentTask
     status: TaskStatus = TaskStatus.PENDING
-    assigned_worker: Optional[str] = None
-    result: Optional[SegmentResult] = None
+    assigned_worker: str | None = None
+    result: SegmentResult | None = None
     attempts: int = 0
     max_attempts: int = 3
     priority: int = 0
@@ -63,8 +62,9 @@ class TaskScheduler:
         self._pending: deque = deque()
         self._completed: list[ScheduledTask] = []
 
-    def create_tasks(self, project_json: str, total_duration: float,
-                     output_dir: str) -> list[ScheduledTask]:
+    def create_tasks(
+        self, project_json: str, total_duration: float, output_dir: str
+    ) -> list[ScheduledTask]:
         """Split the timeline into segments and create render tasks."""
         segments = self._split_duration(total_duration)
         tasks = []
@@ -85,7 +85,7 @@ class TaskScheduler:
         logger.info(f"Created {len(tasks)} render tasks for {total_duration:.1f}s timeline")
         return tasks
 
-    def get_next_task(self, worker_id: str) -> Optional[ScheduledTask]:
+    def get_next_task(self, worker_id: str) -> ScheduledTask | None:
         """Get the next pending task for a worker."""
         while self._pending:
             task = self._pending.popleft()
@@ -108,8 +108,9 @@ class TaskScheduler:
                     if task.attempts < task.max_attempts:
                         task.status = TaskStatus.PENDING
                         self._pending.append(task)
-                        logger.warning(f"Task {task_id} failed, retrying "
-                                       f"({task.attempts}/{task.max_attempts})")
+                        logger.warning(
+                            f"Task {task_id} failed, retrying ({task.attempts}/{task.max_attempts})"
+                        )
                     else:
                         task.status = TaskStatus.FAILED
                         logger.error(f"Task {task_id} failed permanently")
@@ -125,17 +126,16 @@ class TaskScheduler:
 
     def is_complete(self) -> bool:
         """Check if all tasks are completed or failed."""
-        return all(
-            t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED)
-            for t in self.tasks
-        )
+        return all(t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED) for t in self.tasks)
 
     def get_progress(self) -> dict:
         """Get current progress summary."""
         total = len(self.tasks)
         completed = sum(1 for t in self.tasks if t.status == TaskStatus.COMPLETED)
         failed = sum(1 for t in self.tasks if t.status == TaskStatus.FAILED)
-        running = sum(1 for t in self.tasks if t.status in (TaskStatus.ASSIGNED, TaskStatus.RUNNING))
+        running = sum(
+            1 for t in self.tasks if t.status in (TaskStatus.ASSIGNED, TaskStatus.RUNNING)
+        )
         pending = sum(1 for t in self.tasks if t.status == TaskStatus.PENDING)
         return {
             "total": total,

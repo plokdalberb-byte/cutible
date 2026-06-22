@@ -5,20 +5,27 @@ reason about content without watching every frame.
 """
 
 from .models import (
+    AssetIndex,
+    AudioFeatures,
+    NarrativeIndex,
     Scene,
     Shot,
+    SpeakerProfile,
     TranscriptSegment,
     VisualDescription,
-    AudioFeatures,
-    SpeakerProfile,
-    AssetIndex,
-    NarrativeIndex,
 )
-from .store import IndexStore
 from .search import IndexSearcher
+from .store import IndexStore
 
 __all__ = [
-    "Scene", "Shot", "TranscriptSegment", "VisualDescription",
-    "AudioFeatures", "SpeakerProfile", "AssetIndex", "NarrativeIndex",
-    "IndexStore", "IndexSearcher",
+    "Scene",
+    "Shot",
+    "TranscriptSegment",
+    "VisualDescription",
+    "AudioFeatures",
+    "SpeakerProfile",
+    "AssetIndex",
+    "NarrativeIndex",
+    "IndexStore",
+    "IndexSearcher",
 ]

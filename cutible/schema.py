@@ -11,7 +11,6 @@ from __future__ import annotations
 import hashlib
 import json
 from enum import Enum
-from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -38,11 +37,11 @@ class TrackKind(str, Enum):
 class Transform(BaseModel):
     """Geometric transform applied to a clip's video."""
 
-    scale: float = 1.0          # uniform scale multiplier
-    pos_x: int = 0              # pixel offset from centered position
+    scale: float = 1.0  # uniform scale multiplier
+    pos_x: int = 0  # pixel offset from centered position
     pos_y: int = 0
-    crop_w: Optional[int] = None
-    crop_h: Optional[int] = None
+    crop_w: int | None = None
+    crop_h: int | None = None
     crop_x: int = 0
     crop_y: int = 0
 
@@ -56,7 +55,7 @@ class TextLayer(BaseModel):
     text: str
     timeline_in: float
     timeline_out: float
-    x: str = "(w-text_w)/2"     # ffmpeg drawtext expression
+    x: str = "(w-text_w)/2"  # ffmpeg drawtext expression
     y: str = "h-th-60"
     font_size: int = 48
     font_color: str = "white"
@@ -66,7 +65,7 @@ class TextLayer(BaseModel):
     model_config = {"extra": "forbid"}
 
     @model_validator(mode="after")
-    def _check_span(self) -> "TextLayer":
+    def _check_span(self) -> TextLayer:
         if self.timeline_out <= self.timeline_in:
             raise ValueError(
                 f"text layer {self.id}: timeline_out ({self.timeline_out}) "
@@ -87,25 +86,24 @@ class Clip(BaseModel):
     """
 
     id: str
-    asset: str                  # asset id
+    asset: str  # asset id
     src_in: float = 0.0
     src_out: float
     timeline_in: float = 0.0
     speed: float = 1.0
     volume: float = 1.0
     transform: Transform = Field(default_factory=Transform)
-    transition_in: float = 0.0   # crossfade/ fade-in seconds
+    transition_in: float = 0.0  # crossfade/ fade-in seconds
     transition_out: float = 0.0
-    rationale: Optional[str] = None  # why the agent placed this clip (audit)
+    rationale: str | None = None  # why the agent placed this clip (audit)
 
     model_config = {"extra": "forbid"}
 
     @model_validator(mode="after")
-    def _check(self) -> "Clip":
+    def _check(self) -> Clip:
         if self.src_out <= self.src_in:
             raise ValueError(
-                f"clip {self.id}: src_out ({self.src_out}) must be > "
-                f"src_in ({self.src_in})"
+                f"clip {self.id}: src_out ({self.src_out}) must be > src_in ({self.src_in})"
             )
         if self.speed <= 0:
             raise ValueError(f"clip {self.id}: speed must be > 0")
@@ -130,16 +128,16 @@ class Clip(BaseModel):
 class Asset(BaseModel):
     id: str
     type: AssetType
-    uri: Optional[str] = None    # path to media; None for generated (color)
-    duration: Optional[float] = None
+    uri: str | None = None  # path to media; None for generated (color)
+    duration: float | None = None
     # color generator settings
     color: str = "black"
-    index_ref: Optional[str] = None  # pointer into the semantic media index
+    index_ref: str | None = None  # pointer into the semantic media index
 
     model_config = {"extra": "forbid"}
 
     @model_validator(mode="after")
-    def _check(self) -> "Asset":
+    def _check(self) -> Asset:
         if self.type in (AssetType.video, AssetType.audio, AssetType.image):
             if not self.uri:
                 raise ValueError(f"asset {self.id}: uri required for {self.type.value}")
@@ -166,7 +164,7 @@ class Track(BaseModel):
 class Globals(BaseModel):
     background: str = "black"
     loudness_target: float = -14.0  # LUFS target
-    captions_style: Optional[str] = None
+    captions_style: str | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -186,9 +184,9 @@ class RenderSettings(BaseModel):
 
 
 class Provenance(BaseModel):
-    agent_run_id: Optional[str] = None
-    prompt: Optional[str] = None
-    edit_plan_ref: Optional[str] = None
+    agent_run_id: str | None = None
+    prompt: str | None = None
+    edit_plan_ref: str | None = None
     model_versions: dict[str, str] = Field(default_factory=dict)
 
     model_config = {"extra": "allow"}
@@ -225,7 +223,7 @@ class Project(BaseModel):
         raise KeyError(f"no track with id {track_id!r}")
 
     @model_validator(mode="after")
-    def _check_refs(self) -> "Project":
+    def _check_refs(self) -> Project:
         ids = {a.id for a in self.assets}
         if len(ids) != len(self.assets):
             raise ValueError("duplicate asset ids")
@@ -254,8 +252,13 @@ class Project(BaseModel):
             "duration": self.duration,
             "n_assets": len(self.assets),
             "tracks": [
-                {"id": t.id, "kind": t.kind.value, "n_clips": len(t.clips),
-                 "n_texts": len(t.texts), "duration": t.duration}
+                {
+                    "id": t.id,
+                    "kind": t.kind.value,
+                    "n_clips": len(t.clips),
+                    "n_texts": len(t.texts),
+                    "duration": t.duration,
+                }
                 for t in self.tracks
             ],
         }
@@ -270,14 +273,17 @@ class Project(BaseModel):
                     "id": t.id,
                     "kind": t.kind.value,
                     "clips": [
-                        {"id": c.id, "asset": c.asset,
-                         "in": c.timeline_in, "out": c.timeline_out,
-                         "rationale": c.rationale}
+                        {
+                            "id": c.id,
+                            "asset": c.asset,
+                            "in": c.timeline_in,
+                            "out": c.timeline_out,
+                            "rationale": c.rationale,
+                        }
                         for c in t.clips
                     ],
                     "texts": [
-                        {"id": x.id, "text": x.text,
-                         "in": x.timeline_in, "out": x.timeline_out}
+                        {"id": x.id, "text": x.text, "in": x.timeline_in, "out": x.timeline_out}
                         for x in t.texts
                     ],
                 }
@@ -287,16 +293,17 @@ class Project(BaseModel):
 
     # ---- serialization / determinism -------------------------------------- #
     def to_json(self, indent: int = 2) -> str:
-        return json.dumps(self.model_dump(mode="json"), indent=indent,
-                          ensure_ascii=False, sort_keys=False)
+        return json.dumps(
+            self.model_dump(mode="json"), indent=indent, ensure_ascii=False, sort_keys=False
+        )
 
     @classmethod
-    def from_json(cls, text: str) -> "Project":
+    def from_json(cls, text: str) -> Project:
         return cls.model_validate_json(text)
 
     @classmethod
-    def load(cls, path: str) -> "Project":
-        with open(path, "r", encoding="utf-8") as fh:
+    def load(cls, path: str) -> Project:
+        with open(path, encoding="utf-8") as fh:
             return cls.from_json(fh.read())
 
     def save(self, path: str) -> None:
@@ -305,6 +312,7 @@ class Project(BaseModel):
 
     def content_hash(self) -> str:
         """Stable hash of the project for caching / golden-test identity."""
-        canonical = json.dumps(self.model_dump(mode="json"), sort_keys=True,
-                               ensure_ascii=False, separators=(",", ":"))
+        canonical = json.dumps(
+            self.model_dump(mode="json"), sort_keys=True, ensure_ascii=False, separators=(",", ":")
+        )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]

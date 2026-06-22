@@ -8,13 +8,12 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Optional
 
-from .base import BaseAgent, AgentMessage, MessageType, MessageStatus
-from .planner import PlannerAgent
+from .base import AgentMessage, BaseAgent, MessageType
 from .editor import EditorAgent
-from .sound import SoundAgent
+from .planner import PlannerAgent
 from .qc_agent import QCAgent
+from .sound import SoundAgent
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +29,22 @@ class Orchestrator:
     5. If issues found, loop back to editor with feedback
     """
 
-    def __init__(self, max_iterations: int = 3,
-                 vlm_model: str = "gemini",
-                 vlm_api_key: Optional[str] = None,
-                 openai_api_key: Optional[str] = None,
-                 openai_base_url: Optional[str] = None,
-                 openai_model: Optional[str] = None):
+    def __init__(
+        self,
+        max_iterations: int = 3,
+        vlm_model: str = "gemini",
+        vlm_api_key: str | None = None,
+        openai_api_key: str | None = None,
+        openai_base_url: str | None = None,
+        openai_model: str | None = None,
+    ):
         self.max_iterations = max_iterations
         self.agents: dict[str, BaseAgent] = {}
         self.message_log: list[dict] = []
         self.current_iteration = 0
 
         from .llm_client import LLMClient
+
         self.llm_client = LLMClient(
             provider="openai",
             api_key=openai_api_key,
@@ -57,12 +60,16 @@ class Orchestrator:
     def _register_agent(self, agent: BaseAgent) -> None:
         self.agents[agent.name] = agent
 
-    def run(self, brief: str, narrative: Optional[dict] = None,
-            target_duration: float = 60.0,
-            style: str = "informative",
-            music_assets: Optional[list] = None,
-            skip_vlm: bool = False,
-            index_dir: Optional[str] = None) -> dict:
+    def run(
+        self,
+        brief: str,
+        narrative: dict | None = None,
+        target_duration: float = 60.0,
+        style: str = "informative",
+        music_assets: list | None = None,
+        skip_vlm: bool = False,
+        index_dir: str | None = None,
+    ) -> dict:
         """Run the full editing pipeline.
 
         If ``narrative`` is None and ``index_dir`` is provided, loads the
@@ -95,14 +102,9 @@ class Orchestrator:
             project_data = self._run_editor(edit_plan, narrative, project_data)
             iter_result["project_duration"] = self._get_duration(project_data)
 
-            project_data = self._run_sound(
-                project_data, music_assets or [],
-                "v_main", -14.0
-            )
+            project_data = self._run_sound(project_data, music_assets or [], "v_main", -14.0)
 
-            qc_result = self._run_qc(
-                project_data, None, brief, skip_vlm
-            )
+            qc_result = self._run_qc(project_data, None, brief, skip_vlm)
             iter_result["qc"] = qc_result
 
             if qc_result.get("passed", False):
@@ -115,9 +117,7 @@ class Orchestrator:
             if iteration < self.max_iterations - 1:
                 suggestions = qc_result.get("suggestions", [])
                 if suggestions:
-                    edit_plan = self._refine_plan(
-                        edit_plan, suggestions, qc_result
-                    )
+                    edit_plan = self._refine_plan(edit_plan, suggestions, qc_result)
                     iter_result["refined_plan"] = True
                 iter_result["status"] = "needs_revision"
             else:
@@ -128,8 +128,7 @@ class Orchestrator:
 
         return results
 
-    def _run_planner(self, brief: str, narrative: dict,
-                     target_duration: float, style: str) -> dict:
+    def _run_planner(self, brief: str, narrative: dict, target_duration: float, style: str) -> dict:
         planner = self.agents["planner"]
         msg = AgentMessage(
             from_agent="orchestrator",
@@ -148,8 +147,7 @@ class Orchestrator:
             return responses[0].content.get("plan", {})
         return {}
 
-    def _run_editor(self, plan: dict, narrative: dict,
-                    project_data: Optional[dict]) -> dict:
+    def _run_editor(self, plan: dict, narrative: dict, project_data: dict | None) -> dict:
         editor = self.agents["editor"]
         msg = AgentMessage(
             from_agent="orchestrator",
@@ -167,8 +165,9 @@ class Orchestrator:
             return responses[0].content.get("project", {})
         return project_data or {}
 
-    def _run_sound(self, project_data: dict, music_assets: list,
-                   voice_track: str, target_lufs: float) -> dict:
+    def _run_sound(
+        self, project_data: dict, music_assets: list, voice_track: str, target_lufs: float
+    ) -> dict:
         sound = self.agents["sound"]
         msg = AgentMessage(
             from_agent="orchestrator",
@@ -187,8 +186,9 @@ class Orchestrator:
             return responses[0].content.get("project", {})
         return project_data
 
-    def _run_qc(self, project_data: dict, render_path: Optional[str],
-                brief: str, skip_vlm: bool) -> dict:
+    def _run_qc(
+        self, project_data: dict, render_path: str | None, brief: str, skip_vlm: bool
+    ) -> dict:
         qc = self.agents["qc_reviewer"]
         msg = AgentMessage(
             from_agent="orchestrator",
@@ -207,15 +207,14 @@ class Orchestrator:
             return responses[0].content
         return {"passed": False}
 
-    def _refine_plan(self, plan: dict, suggestions: list[str],
-                     qc_result: dict) -> dict:
+    def _refine_plan(self, plan: dict, suggestions: list[str], qc_result: dict) -> dict:
         """Refine the edit plan based on QC feedback."""
         refined = json.loads(json.dumps(plan))
         for seg in refined.get("segments", []):
             seg["refinement_notes"] = suggestions[:3]
         return refined
 
-    def _get_duration(self, project_data: Optional[dict]) -> float:
+    def _get_duration(self, project_data: dict | None) -> float:
         if not project_data:
             return 0.0
         tracks = project_data.get("tracks", [])
@@ -232,6 +231,7 @@ class Orchestrator:
         """Load NarrativeIndex from disk and convert to agent format."""
         try:
             from ..index.store import IndexStore
+
             store = IndexStore(index_dir)
             narrative = store.load_narrative()
             if narrative is not None:

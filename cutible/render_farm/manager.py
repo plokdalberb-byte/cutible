@@ -9,12 +9,11 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
-from typing import Optional
 
-from ..schema import Project
 from ..compiler import FFmpegCompiler
-from .worker import RenderWorker, SegmentTask, SegmentResult
+from ..schema import Project
 from .scheduler import TaskScheduler
+from .worker import RenderWorker, SegmentResult
 
 logger = logging.getLogger(__name__)
 
@@ -30,27 +29,29 @@ class RenderFarmManager:
     - Remote: workers receive HTTP POST /render tasks
     """
 
-    def __init__(self, n_workers: int = 2,
-                 max_segment_duration: float = 30.0,
-                 output_dir: str = ".cutible/render_farm",
-                 remote_endpoints: Optional[list[str]] = None):
+    def __init__(
+        self,
+        n_workers: int = 2,
+        max_segment_duration: float = 30.0,
+        output_dir: str = ".cutible/render_farm",
+        remote_endpoints: list[str] | None = None,
+    ):
         self.n_workers = n_workers
         self.output_dir = output_dir
         self.scheduler = TaskScheduler(n_workers, max_segment_duration)
 
         if remote_endpoints:
             from .remote import RemoteWorker
+
             self.workers = [
-                RemoteWorker(f"remote_{i}", endpoint)
-                for i, endpoint in enumerate(remote_endpoints)
+                RemoteWorker(f"remote_{i}", endpoint) for i, endpoint in enumerate(remote_endpoints)
             ]
         else:
             self.workers = [RenderWorker(f"worker_{i}") for i in range(n_workers)]
 
         os.makedirs(output_dir, exist_ok=True)
 
-    def render(self, project: Project, output_path: str,
-               parallel: bool = True) -> dict:
+    def render(self, project: Project, output_path: str, parallel: bool = True) -> dict:
         """Render the project using the distributed farm."""
         compiler = FFmpegCompiler(project)
         compiled = compiler.build()
@@ -72,10 +73,7 @@ class RenderFarmManager:
         if not tasks:
             return {"ok": False, "error": "no segments created"}
 
-        if parallel:
-            results = self._render_parallel()
-        else:
-            results = self._render_sequential()
+        results = self._render_parallel() if parallel else self._render_sequential()
 
         completed = self.scheduler.get_completed_outputs()
         if not completed:
@@ -113,6 +111,7 @@ class RenderFarmManager:
     def _render_parallel(self) -> list[SegmentResult]:
         """Render segments in parallel across workers."""
         import concurrent.futures
+
         results = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.n_workers) as executor:
             futures = {}
@@ -135,9 +134,10 @@ class RenderFarmManager:
                         next_task = self.scheduler.get_next_task(worker.worker_id)
                         if next_task:
                             next_task.status = "running"
-                            futures[executor.submit(
-                                worker.render_segment, next_task.task
-                            )] = (worker, next_task)
+                            futures[executor.submit(worker.render_segment, next_task.task)] = (
+                                worker,
+                                next_task,
+                            )
                     except Exception as e:
                         self.scheduler.complete_task(
                             task.task.task_id,
@@ -158,8 +158,7 @@ class RenderFarmManager:
             results.append(result)
         return results
 
-    def _assemble_segments(self, segment_paths: list[str],
-                            output_path: str) -> dict:
+    def _assemble_segments(self, segment_paths: list[str], output_path: str) -> dict:
         """Concatenate rendered segments into the final output."""
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         concat_file = os.path.join(self.output_dir, "concat.txt")
@@ -167,15 +166,25 @@ class RenderFarmManager:
             for path in segment_paths:
                 f.write(f"file '{os.path.abspath(path)}'\n")
         cmd = [
-            "ffmpeg", "-y", "-hide_banner", "-nostdin",
-            "-f", "concat", "-safe", "0",
-            "-i", concat_file,
-            "-c", "copy",
-            "-movflags", "+faststart",
+            "ffmpeg",
+            "-y",
+            "-hide_banner",
+            "-nostdin",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            concat_file,
+            "-c",
+            "copy",
+            "-movflags",
+            "+faststart",
             output_path,
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300,
-                               encoding="utf-8", errors="replace")
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=300, encoding="utf-8", errors="replace"
+        )
         if proc.returncode != 0:
             return {"ok": False, "error": f"assembly failed: {proc.stderr[-200:]}"}
         return {"ok": True}

@@ -9,15 +9,15 @@ and Python SDK.
 """
 
 from .schema import (
-    Project,
     Asset,
-    Track,
     Clip,
-    TextLayer,
-    Transform,
     Globals,
-    RenderSettings,
+    Project,
     Provenance,
+    RenderSettings,
+    TextLayer,
+    Track,
+    Transform,
 )
 from .verbs import Editor, VerbError
 from .verbs_high import HighLevelVerbs

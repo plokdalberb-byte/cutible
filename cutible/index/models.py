@@ -8,7 +8,6 @@ is the cross-asset summary that gives the agent a high-level understanding.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -30,7 +29,7 @@ class VisualDescription(BaseModel):
     timestamp: float
     duration: float
     description: str
-    shot_type: Optional[ShotType] = None
+    shot_type: ShotType | None = None
     subjects: list[str] = Field(default_factory=list)
     action: str = ""
     emotion: str = ""
@@ -68,7 +67,7 @@ class AudioFeatures(BaseModel):
     peak_db: float = 0.0
     is_silence: bool = False
     silence_ratio: float = 0.0  # fraction of segment that is silence
-    tempo_bpm: Optional[float] = None
+    tempo_bpm: float | None = None
     beat_times: list[float] = Field(default_factory=list)
     spectral_centroid_mean: float = 0.0
 
@@ -96,10 +95,10 @@ class Shot(BaseModel):
     start: float
     end: float
     scene_id: str = ""
-    visual: Optional[VisualDescription] = None
-    audio: Optional[AudioFeatures] = None
+    visual: VisualDescription | None = None
+    audio: AudioFeatures | None = None
     transcript_segments: list[TranscriptSegment] = Field(default_factory=list)
-    keyframe_uri: Optional[str] = None  # path to extracted keyframe image
+    keyframe_uri: str | None = None  # path to extracted keyframe image
 
     model_config = {"extra": "forbid"}
 
@@ -155,7 +154,7 @@ class AssetIndex(BaseModel):
     visual_descriptions: list[VisualDescription] = Field(default_factory=list)
     audio_features: list[AudioFeatures] = Field(default_factory=list)
     beat_times: list[float] = Field(default_factory=list)
-    tempo_bpm: Optional[float] = None
+    tempo_bpm: float | None = None
     silence_ranges: list[tuple[float, float]] = Field(default_factory=list)
     technical_issues: list[dict] = Field(default_factory=list)
     embedding_refs: list[str] = Field(default_factory=list)  # vector DB IDs
@@ -218,7 +217,9 @@ class NarrativeIndex(BaseModel):
             "total_duration": self.total_duration,
             "n_assets": len(self.asset_indices),
             "n_speakers": len(self.speakers),
-            "synopsis_preview": self.synopsis[:200] + "..." if len(self.synopsis) > 200 else self.synopsis,
+            "synopsis_preview": self.synopsis[:200] + "..."
+            if len(self.synopsis) > 200
+            else self.synopsis,
         }
 
     def to_agent_dict(self) -> dict:
@@ -229,39 +230,41 @@ class NarrativeIndex(BaseModel):
         """
         assets = []
         for ai in self.asset_indices:
-            transcript_preview = " ".join(
-                s.text for s in ai.transcript[:5]
-            )[:200]
+            transcript_preview = " ".join(s.text for s in ai.transcript[:5])[:200]
             scenes_summary = [
-                {"id": s.id, "start": s.start, "end": s.end,
-                 "summary": s.summary or s.topic}
+                {"id": s.id, "start": s.start, "end": s.end, "summary": s.summary or s.topic}
                 for s in ai.scenes[:10]
             ]
-            assets.append({
-                "asset_id": ai.asset_id,
-                "uri": ai.uri,
-                "duration": ai.duration,
-                "fps": ai.fps,
-                "width": ai.width,
-                "height": ai.height,
-                "n_scenes": len(ai.scenes),
-                "n_transcript_segments": len(ai.transcript),
-                "transcript_preview": transcript_preview,
-                "speakers": [
-                    {"id": sp.speaker_id, "label": sp.label,
-                     "speaking_time": sp.total_speaking_time}
-                    for sp in ai.speakers
-                ],
-                "beat_times": ai.beat_times[:50],
-                "tempo_bpm": ai.tempo_bpm,
-                "silence_ranges": ai.silence_ranges,
-                "scenes": scenes_summary,
-                "best_segments": [
-                    {"start": s.start, "end": s.end, "text": s.full_text[:100]}
-                    for s in ai.scenes
-                    if s.full_text.strip()
-                ][:10],
-            })
+            assets.append(
+                {
+                    "asset_id": ai.asset_id,
+                    "uri": ai.uri,
+                    "duration": ai.duration,
+                    "fps": ai.fps,
+                    "width": ai.width,
+                    "height": ai.height,
+                    "n_scenes": len(ai.scenes),
+                    "n_transcript_segments": len(ai.transcript),
+                    "transcript_preview": transcript_preview,
+                    "speakers": [
+                        {
+                            "id": sp.speaker_id,
+                            "label": sp.label,
+                            "speaking_time": sp.total_speaking_time,
+                        }
+                        for sp in ai.speakers
+                    ],
+                    "beat_times": ai.beat_times[:50],
+                    "tempo_bpm": ai.tempo_bpm,
+                    "silence_ranges": ai.silence_ranges,
+                    "scenes": scenes_summary,
+                    "best_segments": [
+                        {"start": s.start, "end": s.end, "text": s.full_text[:100]}
+                        for s in ai.scenes
+                        if s.full_text.strip()
+                    ][:10],
+                }
+            )
 
         return {
             "project_id": self.project_id,
@@ -269,8 +272,7 @@ class NarrativeIndex(BaseModel):
             "synopsis": self.synopsis,
             "n_assets": len(assets),
             "speakers": [
-                {"id": sp.speaker_id, "label": sp.label,
-                 "total_time": sp.total_speaking_time}
+                {"id": sp.speaker_id, "label": sp.label, "total_time": sp.total_speaking_time}
                 for sp in self.speakers
             ],
             "key_moments": self.key_moments,
@@ -287,11 +289,13 @@ class NarrativeIndex(BaseModel):
         for ai in self.asset_indices:
             for seg in ai.transcript:
                 if query_lower in seg.text.lower():
-                    results.append({
-                        "asset_id": ai.asset_id,
-                        "start": seg.start,
-                        "end": seg.end,
-                        "text": seg.text,
-                        "speaker": seg.speaker,
-                    })
+                    results.append(
+                        {
+                            "asset_id": ai.asset_id,
+                            "start": seg.start,
+                            "end": seg.end,
+                            "text": seg.text,
+                            "speaker": seg.speaker,
+                        }
+                    )
         return results

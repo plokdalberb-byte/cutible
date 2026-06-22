@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,23 +25,24 @@ class LLMClient:
     ``None`` so callers can fall back to their heuristic logic.
     """
 
-    def __init__(self, provider: str = "openai",
-                 api_key: Optional[str] = None,
-                 base_url: Optional[str] = None,
-                 model: Optional[str] = None):
+    def __init__(
+        self,
+        provider: str = "openai",
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+    ):
         self.provider = provider
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
         self.base_url = (
-            base_url
-            or os.environ.get("OPENAI_BASE_URL", "")
-            or DEFAULT_BASE_URL
+            base_url or os.environ.get("OPENAI_BASE_URL", "") or DEFAULT_BASE_URL
         ).rstrip("/")
         self.model = model or os.environ.get("OPENAI_MODEL", DEFAULT_MODEL)
         self.available = bool(self.api_key)
 
-    def generate(self, system_prompt: str, user_prompt: str,
-                 temperature: float = 0.7,
-                 max_tokens: int = 2000) -> Optional[dict]:
+    def generate(
+        self, system_prompt: str, user_prompt: str, temperature: float = 0.7, max_tokens: int = 2000
+    ) -> dict | None:
         """Call the LLM and return a parsed JSON response.
 
         Returns ``None`` if no API key is available or the call fails,
@@ -52,40 +52,38 @@ class LLMClient:
             return None
         try:
             if self.provider == "openai":
-                return self._call_openai(system_prompt, user_prompt,
-                                          temperature, max_tokens)
+                return self._call_openai(system_prompt, user_prompt, temperature, max_tokens)
             logger.warning(f"Unknown LLM provider: {self.provider}")
             return None
         except Exception as e:
             logger.warning(f"LLM call failed: {e}")
             return None
 
-    def generate_text(self, system_prompt: str, user_prompt: str,
-                      temperature: float = 0.7,
-                      max_tokens: int = 2000) -> Optional[str]:
+    def generate_text(
+        self, system_prompt: str, user_prompt: str, temperature: float = 0.7, max_tokens: int = 2000
+    ) -> str | None:
         """Call the LLM and return raw text (not parsed as JSON)."""
         if not self.available:
             return None
         try:
             if self.provider == "openai":
-                result = self._call_openai_raw(system_prompt, user_prompt,
-                                                temperature, max_tokens)
+                result = self._call_openai_raw(system_prompt, user_prompt, temperature, max_tokens)
                 return result
             return None
         except Exception as e:
             logger.warning(f"LLM text call failed: {e}")
             return None
 
-    def _call_openai(self, system_prompt: str, user_prompt: str,
-                     temperature: float, max_tokens: int) -> Optional[dict]:
+    def _call_openai(
+        self, system_prompt: str, user_prompt: str, temperature: float, max_tokens: int
+    ) -> dict | None:
         """Call OpenAI-compatible chat completions API and parse JSON response."""
-        text = self._call_openai_raw(system_prompt, user_prompt,
-                                      temperature, max_tokens)
+        text = self._call_openai_raw(system_prompt, user_prompt, temperature, max_tokens)
         if text is None:
             return None
         return self._parse_json(text)
 
-    def _parse_json(self, text: str) -> Optional[dict]:
+    def _parse_json(self, text: str) -> dict | None:
         """Try to extract and parse JSON from potentially messy LLM output."""
         if not text:
             return None
@@ -113,7 +111,8 @@ class LLMClient:
 
         # Find all {...} blocks and try each
         import re
-        for match in re.finditer(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL):
+
+        for match in re.finditer(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL):
             candidate = match.group(0)
             try:
                 return json.loads(candidate)
@@ -129,11 +128,12 @@ class LLMClient:
         start = text.find("{")
         end = text.rfind("}")
         if start >= 0 and end > start:
-            candidate = text[start:end + 1]
+            candidate = text[start : end + 1]
             try:
                 return json.loads(candidate)
             except json.JSONDecodeError:
                 import re
+
                 fixed = re.sub(r",\s*}", "}", candidate)
                 fixed = re.sub(r",\s*]", "]", fixed)
                 try:
@@ -144,8 +144,9 @@ class LLMClient:
         logger.warning(f"Could not parse JSON from LLM output: {text[:300]}")
         return None
 
-    def _call_openai_raw(self, system_prompt: str, user_prompt: str,
-                         temperature: float, max_tokens: int) -> Optional[str]:
+    def _call_openai_raw(
+        self, system_prompt: str, user_prompt: str, temperature: float, max_tokens: int
+    ) -> str | None:
         """Call OpenAI-compatible chat completions and return raw text."""
         import urllib.request
 

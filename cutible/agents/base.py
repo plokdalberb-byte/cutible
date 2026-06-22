@@ -6,14 +6,13 @@ results, and maintaining state within the orchestrator's coordination.
 
 from __future__ import annotations
 
-import json
 import logging
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ class AgentMessage:
     status: MessageStatus = MessageStatus.PENDING
     content: dict = field(default_factory=dict)
     timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    reply_to: Optional[str] = None
+    reply_to: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -59,7 +58,7 @@ class AgentMessage:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "AgentMessage":
+    def from_dict(cls, d: dict) -> AgentMessage:
         return cls(
             id=d.get("id", ""),
             from_agent=d.get("from_agent", ""),
@@ -78,8 +77,7 @@ class BaseAgent(ABC):
     Subclasses implement `execute()` with their specific logic.
     """
 
-    def __init__(self, name: str, role: str, description: str = "",
-                 llm_client: Optional[Any] = None):
+    def __init__(self, name: str, role: str, description: str = "", llm_client: Any | None = None):
         self.name = name
         self.role = role
         self.description = description
@@ -99,8 +97,9 @@ class BaseAgent(ABC):
         self.inbox.append(message)
         self._log("receive", message)
 
-    def send(self, to_agent: str, msg_type: MessageType,
-             content: dict, reply_to: Optional[str] = None) -> AgentMessage:
+    def send(
+        self, to_agent: str, msg_type: MessageType, content: dict, reply_to: str | None = None
+    ) -> AgentMessage:
         """Create and queue an outgoing message."""
         msg = AgentMessage(
             from_agent=self.name,
@@ -113,7 +112,7 @@ class BaseAgent(ABC):
         self._log("send", msg)
         return msg
 
-    def process_next(self) -> Optional[AgentMessage]:
+    def process_next(self) -> AgentMessage | None:
         """Process the next message in the inbox."""
         if not self.inbox:
             return None
@@ -162,8 +161,10 @@ class BaseAgent(ABC):
             "timestamp": message.timestamp,
         }
         self._history.append(entry)
-        logger.debug(f"[{self.name}] {action}: {message.type.value} "
-                     f"from={message.from_agent} to={message.to_agent}")
+        logger.debug(
+            f"[{self.name}] {action}: {message.type.value} "
+            f"from={message.from_agent} to={message.to_agent}"
+        )
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} name={self.name!r} role={self.role!r}>"

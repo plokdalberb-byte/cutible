@@ -10,9 +10,9 @@ deterministic heuristics when not.
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any
 
-from .base import BaseAgent, AgentMessage, MessageType
+from .base import AgentMessage, BaseAgent, MessageType
 
 
 class PlannerAgent(BaseAgent):
@@ -22,7 +22,7 @@ class PlannerAgent(BaseAgent):
     Output: structured edit plan with scenes, segments, timing, tone
     """
 
-    def __init__(self, name: str = "planner", llm_client: Optional[Any] = None):
+    def __init__(self, name: str = "planner", llm_client: Any | None = None):
         super().__init__(
             name=name,
             role="planner",
@@ -46,8 +46,7 @@ class PlannerAgent(BaseAgent):
             reply_to=message.id,
         )
 
-    def _create_plan(self, brief: str, narrative: dict,
-                     target_duration: float, style: str) -> dict:
+    def _create_plan(self, brief: str, narrative: dict, target_duration: float, style: str) -> dict:
         """Create a structured edit plan from the brief."""
         # Try LLM first
         if self.llm and self.llm.available:
@@ -58,11 +57,11 @@ class PlannerAgent(BaseAgent):
         # Fallback to heuristic
         return self._plan_heuristic(brief, narrative, target_duration, style)
 
-    def _plan_with_llm(self, brief: str, narrative: dict,
-                       target_duration: float, style: str) -> Optional[dict]:
+    def _plan_with_llm(
+        self, brief: str, narrative: dict, target_duration: float, style: str
+    ) -> dict | None:
         """Use LLM to generate an intelligent edit plan."""
-        assets_summary = json.dumps(narrative.get("assets", [])[:5], indent=2,
-                                     default=str)[:3000]
+        assets_summary = json.dumps(narrative.get("assets", [])[:5], indent=2, default=str)[:3000]
 
         system_prompt = (
             "You are a professional video editor creating an edit plan. "
@@ -91,8 +90,7 @@ class PlannerAgent(BaseAgent):
             "Create an edit plan that makes the best use of the available material."
         )
 
-        result = self.llm.generate(system_prompt, user_prompt,
-                                    temperature=0.7, max_tokens=2000)
+        result = self.llm.generate(system_prompt, user_prompt, temperature=0.7, max_tokens=2000)
         if result is None:
             return None
 
@@ -115,16 +113,18 @@ class PlannerAgent(BaseAgent):
         # Convert to standard plan format
         normalized_segments = []
         for seg in segments:
-            normalized_segments.append({
-                "type": seg["type"],
-                "description": seg["description"],
-                "start": seg.get("timeline_start", 0.0),
-                "end": seg.get("timeline_end", seg.get("timeline_start", 0) + 5.0),
-                "source_asset": seg.get("source_asset"),
-                "src_start": seg.get("src_start", 0.0),
-                "src_end": seg.get("src_end", seg.get("src_start", 0) + 5.0),
-                "rationale": seg.get("rationale", ""),
-            })
+            normalized_segments.append(
+                {
+                    "type": seg["type"],
+                    "description": seg["description"],
+                    "start": seg.get("timeline_start", 0.0),
+                    "end": seg.get("timeline_end", seg.get("timeline_start", 0) + 5.0),
+                    "source_asset": seg.get("source_asset"),
+                    "src_start": seg.get("src_start", 0.0),
+                    "src_end": seg.get("src_end", seg.get("src_start", 0) + 5.0),
+                    "rationale": seg.get("rationale", ""),
+                }
+            )
 
         return {
             "brief": brief,
@@ -143,8 +143,9 @@ class PlannerAgent(BaseAgent):
             "source": "llm",
         }
 
-    def _plan_heuristic(self, brief: str, narrative: dict,
-                        target_duration: float, style: str) -> dict:
+    def _plan_heuristic(
+        self, brief: str, narrative: dict, target_duration: float, style: str
+    ) -> dict:
         """Deterministic heuristic plan generation (fallback)."""
         segments = self._plan_segments(brief, narrative, target_duration)
 
@@ -163,19 +164,20 @@ class PlannerAgent(BaseAgent):
             "source": "heuristic",
         }
 
-    def _plan_segments(self, brief: str, narrative: dict,
-                       target_duration: float) -> list[dict]:
+    def _plan_segments(self, brief: str, narrative: dict, target_duration: float) -> list[dict]:
         """Plan individual segments with timing."""
         assets = narrative.get("assets", [])
 
         if not assets:
-            return [{
-                "type": "placeholder",
-                "description": brief,
-                "start": 0,
-                "end": target_duration,
-                "source_asset": None,
-            }]
+            return [
+                {
+                    "type": "placeholder",
+                    "description": brief,
+                    "start": 0,
+                    "end": target_duration,
+                    "source_asset": None,
+                }
+            ]
 
         segments = []
         hook_duration = min(5.0, target_duration * 0.15)
@@ -183,35 +185,41 @@ class PlannerAgent(BaseAgent):
         n_assets = len(assets)
         per_asset = main_duration / max(n_assets, 1)
 
-        segments.append({
-            "type": "hook",
-            "description": "Opening hook to grab attention",
-            "start": 0,
-            "end": hook_duration,
-            "source_asset": assets[0]["asset_id"] if assets else None,
-        })
+        segments.append(
+            {
+                "type": "hook",
+                "description": "Opening hook to grab attention",
+                "start": 0,
+                "end": hook_duration,
+                "source_asset": assets[0]["asset_id"] if assets else None,
+            }
+        )
 
         for i, asset in enumerate(assets):
             seg_start = hook_duration + i * per_asset
             seg_end = min(seg_start + per_asset, target_duration - 5.0)
             if seg_start >= target_duration - 5.0:
                 break
-            segments.append({
-                "type": "body",
-                "description": f"Main content segment {i + 1}",
-                "start": seg_start,
-                "end": seg_end,
-                "source_asset": asset.get("asset_id"),
-                "duration": asset.get("duration", 0),
-            })
+            segments.append(
+                {
+                    "type": "body",
+                    "description": f"Main content segment {i + 1}",
+                    "start": seg_start,
+                    "end": seg_end,
+                    "source_asset": asset.get("asset_id"),
+                    "duration": asset.get("duration", 0),
+                }
+            )
 
-        segments.append({
-            "type": "outro",
-            "description": "Closing / call to action",
-            "start": target_duration - 5.0,
-            "end": target_duration,
-            "source_asset": assets[-1]["asset_id"] if assets else None,
-        })
+        segments.append(
+            {
+                "type": "outro",
+                "description": "Closing / call to action",
+                "start": target_duration - 5.0,
+                "end": target_duration,
+                "source_asset": assets[-1]["asset_id"] if assets else None,
+            }
+        )
 
         return segments
 

@@ -8,14 +8,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import tempfile
-from dataclasses import dataclass
-from typing import Optional
-import urllib.request
 import urllib.error
+import urllib.request
 
-from .worker import RenderWorker, SegmentTask, SegmentResult, WorkerStatus
+from .worker import RenderWorker, SegmentResult, SegmentTask, WorkerStatus
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +23,7 @@ class RemoteWorker(RenderWorker):
     and return SegmentResult JSON.
     """
 
-    def __init__(self, worker_id: str, endpoint: str,
-                 timeout: int = 600):
+    def __init__(self, worker_id: str, endpoint: str, timeout: int = 600):
         super().__init__(worker_id)
         self.endpoint = endpoint.rstrip("/")
         self.timeout = timeout
@@ -92,6 +87,7 @@ def create_worker_app():
         raise ImportError("FastAPI required for worker server")
 
     from fastapi import FastAPI
+
     app = FastAPI(title="Cutible Render Worker")
     worker = RenderWorker("server_worker")
 
@@ -118,11 +114,13 @@ def create_worker_app():
 HAS_FASTAPI = False
 try:
     import fastapi
+
     HAS_FASTAPI = True
 except ImportError:
     pass
 
 if __name__ == "__main__":
     import uvicorn
+
     app = create_worker_app()
     uvicorn.run(app, host="0.0.0.0", port=8001)

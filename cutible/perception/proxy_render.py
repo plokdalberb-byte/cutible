@@ -7,12 +7,10 @@ for full-quality renders.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import subprocess
 from dataclasses import dataclass
-from typing import Optional
 
 from ..schema import Project
 
@@ -42,11 +40,12 @@ class ProxyRenderer:
     the agent to iterate quickly through the perception loop.
     """
 
-    def __init__(self, config: Optional[ProxyConfig] = None):
+    def __init__(self, config: ProxyConfig | None = None):
         self.config = config or ProxyConfig()
 
-    def render_proxy(self, project: Project, output_path: str,
-                     max_duration: Optional[float] = None) -> dict:
+    def render_proxy(
+        self, project: Project, output_path: str, max_duration: float | None = None
+    ) -> dict:
         """Render a low-resolution proxy of the project."""
         from ..compiler import FFmpegCompiler
 
@@ -62,26 +61,40 @@ class ProxyRenderer:
         for m in compiled.maps:
             cmd += ["-map", m]
         cmd += [
-            "-r", str(self.config.fps),
-            "-vf", f"scale={self.config.resolution}",
-            "-c:v", "libx264", "-preset", "ultrafast",
-            "-crf", str(self.config.crf),
-            "-pix_fmt", "yuv420p",
+            "-r",
+            str(self.config.fps),
+            "-vf",
+            f"scale={self.config.resolution}",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            str(self.config.crf),
+            "-pix_fmt",
+            "yuv420p",
         ]
         if compiled.has_audio:
             cmd += [
-                "-c:a", "aac", "-b:a", self.config.audio_bitrate,
-                "-ar", "44100",
+                "-c:a",
+                "aac",
+                "-b:a",
+                self.config.audio_bitrate,
+                "-ar",
+                "44100",
             ]
         cmd += [
-            "-t", f"{duration:.6f}",
-            "-map_metadata", "-1",
+            "-t",
+            f"{duration:.6f}",
+            "-map_metadata",
+            "-1",
             output_path,
         ]
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120,
-                               encoding="utf-8", errors="replace")
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=120, encoding="utf-8", errors="replace"
+        )
         if proc.returncode != 0:
             tail = "\n".join(proc.stderr.strip().splitlines()[-20:])
             raise RuntimeError(f"Proxy render failed: {tail}")
@@ -95,10 +108,8 @@ class ProxyRenderer:
             "size_bytes": os.path.getsize(output_path),
         }
 
-    def render_clip_proxy(self, project: Project, clip_id: str,
-                          output_path: str) -> dict:
+    def render_clip_proxy(self, project: Project, clip_id: str, output_path: str) -> dict:
         """Render a proxy of a single clip for isolated review."""
-        from ..compiler import FFmpegCompiler
 
         clip = None
         for track in project.tracks:
@@ -114,23 +125,36 @@ class ProxyRenderer:
             raise ValueError(f"clip {clip_id!r} has no media URI")
 
         cmd = [
-            "ffmpeg", "-y", "-hide_banner", "-nostdin",
-            "-ss", f"{clip.src_in:.3f}",
-            "-i", asset.uri,
-            "-t", f"{clip.duration:.3f}",
-            "-vf", f"scale={self.config.resolution}",
-            "-c:v", "libx264", "-preset", "ultrafast",
-            "-crf", str(self.config.crf),
-            "-pix_fmt", "yuv420p",
+            "ffmpeg",
+            "-y",
+            "-hide_banner",
+            "-nostdin",
+            "-ss",
+            f"{clip.src_in:.3f}",
+            "-i",
+            asset.uri,
+            "-t",
+            f"{clip.duration:.3f}",
+            "-vf",
+            f"scale={self.config.resolution}",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            str(self.config.crf),
+            "-pix_fmt",
+            "yuv420p",
             "-an",
             output_path,
         ]
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
-                               encoding="utf-8", errors="replace")
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=60, encoding="utf-8", errors="replace"
+        )
         if proc.returncode != 0:
-            raise RuntimeError(f"Clip proxy render failed")
+            raise RuntimeError("Clip proxy render failed")
 
         return {
             "ok": True,
@@ -139,8 +163,7 @@ class ProxyRenderer:
             "duration": clip.duration,
         }
 
-    def render_segment(self, project: Project, start: float, end: float,
-                       output_path: str) -> dict:
+    def render_segment(self, project: Project, start: float, end: float, output_path: str) -> dict:
         """Render a segment of the timeline as proxy."""
         from ..compiler import FFmpegCompiler
 
@@ -154,23 +177,33 @@ class ProxyRenderer:
         for m in compiled.maps:
             cmd += ["-map", m]
         cmd += [
-            "-ss", f"{start:.3f}",
-            "-t", f"{end - start:.3f}",
-            "-r", str(self.config.fps),
-            "-vf", f"scale={self.config.resolution}",
-            "-c:v", "libx264", "-preset", "ultrafast",
-            "-crf", str(self.config.crf),
-            "-pix_fmt", "yuv420p",
+            "-ss",
+            f"{start:.3f}",
+            "-t",
+            f"{end - start:.3f}",
+            "-r",
+            str(self.config.fps),
+            "-vf",
+            f"scale={self.config.resolution}",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            str(self.config.crf),
+            "-pix_fmt",
+            "yuv420p",
         ]
         if compiled.has_audio:
             cmd += ["-c:a", "aac", "-b:a", self.config.audio_bitrate, "-ar", "44100"]
         cmd += ["-map_metadata", "-1", output_path]
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120,
-                               encoding="utf-8", errors="replace")
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=120, encoding="utf-8", errors="replace"
+        )
         if proc.returncode != 0:
-            raise RuntimeError(f"Segment proxy render failed")
+            raise RuntimeError("Segment proxy render failed")
 
         return {
             "ok": True,

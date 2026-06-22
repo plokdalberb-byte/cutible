@@ -65,10 +65,23 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
-ignore = ["E501"]
+ignore = [
+    "E501",     # line length handled by ruff format
+    "N806",     # uppercase variables (W, H, FPS) are intentional
+    "SIM102",   # nested ifs are clearer in validators
+    "SIM108",   # ternary not always more readable
+    "SIM115",   # tempfile.NamedTemporaryFile pattern is intentional
+    "B905",     # zip strict= not needed here
+]
+per-file-ignores = {
+    "cutible/ingest/embeddings.py" = ["F401"],  # torch imported for CLIP
+    "cutible/render_farm/remote.py" = ["F401"],  # fastapi try-import
+}
 
 [tool.mypy]
 python_version = "3.10"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
 ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false

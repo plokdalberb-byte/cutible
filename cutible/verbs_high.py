@@ -6,26 +6,26 @@ primitives + intelligence. They return diffs just like primitives.
 
 from __future__ import annotations
 
-import json
-import math
-from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from .schema import (
-    Asset, AssetType, Clip, Project, TextLayer, Track, TrackKind, Transform,
+    AssetType,
+    TextLayer,
+    Track,
 )
-from .verbs import Editor, Diff, VerbError
+from .verbs import Diff, Editor, VerbError
 
 
 class HighLevelVerbs:
     """High-level editing intentions that compose low-level verbs."""
 
-    def __init__(self, editor: Editor, index_store: Optional[Any] = None):
+    def __init__(self, editor: Editor, index_store: Any | None = None):
         self.ed = editor
         self.store = index_store
 
-    def remove_silences(self, track_id: str, silence_threshold: float = 0.5,
-                        min_silence: float = 0.5) -> Diff:
+    def remove_silences(
+        self, track_id: str, silence_threshold: float = 0.5, min_silence: float = 0.5
+    ) -> Diff:
         """Remove silent portions from all clips on a track."""
         track = self.ed.project.track(track_id)
         if not track.clips:
@@ -59,8 +59,7 @@ class HighLevelVerbs:
         )
         return self.ed.diff
 
-    def reframe_to(self, asset_id: str, target_aspect: str = "9:16",
-                   focus: str = "center") -> Diff:
+    def reframe_to(self, asset_id: str, target_aspect: str = "9:16", focus: str = "center") -> Diff:
         """Reframe a video asset for a different aspect ratio."""
         asset = self.ed.project.asset(asset_id)
         if asset.type not in (AssetType.video, AssetType.color, AssetType.image):
@@ -97,8 +96,7 @@ class HighLevelVerbs:
         )
         return self.ed.diff
 
-    def sync_cuts_to_beat(self, track_id: str, audio_track_id: str,
-                          tolerance: float = 0.1) -> Diff:
+    def sync_cuts_to_beat(self, track_id: str, audio_track_id: str, tolerance: float = 0.1) -> Diff:
         """Snap clip transitions to the nearest beat in the audio track."""
         audio_track = self.ed.project.track(audio_track_id)
         if not audio_track.clips:
@@ -148,37 +146,45 @@ class HighLevelVerbs:
         )
         return self.ed.diff
 
-    def b_roll_overlay(self, query: str, track_id: str = "v_main",
-                       duration: float = 3.0) -> Diff:
+    def b_roll_overlay(self, query: str, track_id: str = "v_main", duration: float = 3.0) -> Diff:
         """Find and overlay B-roll footage matching a query."""
         if self.store is None:
             raise VerbError("index store required for B-roll search")
         results = self.store.search_b_roll(query)
         if not results:
-            raise VerbError(f"no B-roll found for '{query}'",
-                            hint="try a different query or import more assets")
+            raise VerbError(
+                f"no B-roll found for '{query}'", hint="try a different query or import more assets"
+            )
         best = results[0]
         asset_id = best["asset_id"]
         existing_assets = [a.id for a in self.ed.project.assets]
         if asset_id not in existing_assets:
             asset = self.ed.project.asset(asset_id) if asset_id in existing_assets else None
             if asset is None:
-                raise VerbError(f"asset {asset_id!r} not in project",
-                                hint="add the asset first with add_asset")
+                raise VerbError(
+                    f"asset {asset_id!r} not in project", hint="add the asset first with add_asset"
+                )
         src_start = best["start"]
         track = self.ed.project.track(track_id)
         timeline_start = track.duration if track.clips else 0.0
         diff = self.ed.add_clip(
-            track_id, asset_id,
-            src_in=src_start, src_out=src_start + duration,
+            track_id,
+            asset_id,
+            src_in=src_start,
+            src_out=src_start + duration,
             timeline_in=timeline_start,
             rationale=f"B-roll: {query}",
         )
         return diff
 
-    def auto_ducking(self, voice_track_id: str, music_track_id: str,
-                     duck_level: float = 0.15, attack: float = 0.3,
-                     release: float = 0.5) -> Diff:
+    def auto_ducking(
+        self,
+        voice_track_id: str,
+        music_track_id: str,
+        duck_level: float = 0.15,
+        attack: float = 0.3,
+        release: float = 0.5,
+    ) -> Diff:
         """Automatically duck music volume when voice is present."""
         voice_track = self.ed.project.track(voice_track_id)
         music_track = self.ed.project.track(music_track_id)
@@ -268,8 +274,7 @@ class HighLevelVerbs:
         )
         return self.ed.diff
 
-    def make_short(self, topic: str, duration: float = 60.0,
-                   asset_id: Optional[str] = None) -> Diff:
+    def make_short(self, topic: str, duration: float = 60.0, asset_id: str | None = None) -> Diff:
         """Create a short clip from source material based on a topic."""
         if self.store is None:
             raise VerbError("index store required for topic search")
@@ -294,8 +299,10 @@ class HighLevelVerbs:
             if aid not in existing:
                 continue
             diff = self.ed.add_clip(
-                target_track, aid,
-                src_in=src_start, src_out=src_start + clip_dur,
+                target_track,
+                aid,
+                src_in=src_start,
+                src_out=src_start + clip_dur,
                 timeline_in=elapsed,
                 rationale=f"short about: {topic}",
             )
@@ -317,18 +324,28 @@ class HighLevelVerbs:
                     break
             if asset_idx:
                 return asset_idx.silence_ranges
-        import subprocess, re
+        import re
+        import subprocess
+
         cmd = [
-            "ffmpeg", "-hide_banner", "-nostdin", "-i", uri,
-            "-af", f"silencedetect=noise=-40dB:d={min_silence}",
-            "-f", "null", "-",
+            "ffmpeg",
+            "-hide_banner",
+            "-nostdin",
+            "-i",
+            uri,
+            "-af",
+            f"silencedetect=noise=-40dB:d={min_silence}",
+            "-f",
+            "null",
+            "-",
         ]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120,
-                                   encoding="utf-8", errors="replace")
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=120, encoding="utf-8", errors="replace"
+            )
             starts = re.findall(r"silence_start:\s*(\d+\.?\d*)", proc.stderr)
             ends = re.findall(r"silence_end:\s*(\d+\.?\d*)", proc.stderr)
-            return [(float(s), float(e)) for s, e in zip(starts, ends)]
+            return [(float(s), float(e)) for s, e in zip(starts, ends, strict=False)]
         except Exception:
             return []
 
@@ -343,7 +360,6 @@ class HighLevelVerbs:
                         break
         if not beats:
             for clip in track.clips:
-                dur = clip.duration
                 interval = 0.5
                 t = clip.timeline_in
                 while t < clip.timeline_out:
@@ -353,8 +369,18 @@ class HighLevelVerbs:
 
     def _caption_style(self, style: str) -> dict:
         styles = {
-            "default": {"font_size": 48, "font_color": "white", "box": True, "box_color": "black@0.5"},
-            "bold": {"font_size": 64, "font_color": "yellow", "box": True, "box_color": "black@0.7"},
+            "default": {
+                "font_size": 48,
+                "font_color": "white",
+                "box": True,
+                "box_color": "black@0.5",
+            },
+            "bold": {
+                "font_size": 64,
+                "font_color": "yellow",
+                "box": True,
+                "box_color": "black@0.7",
+            },
             "minimal": {"font_size": 36, "font_color": "white", "box": False},
             "social": {"font_size": 56, "font_color": "white", "box": True, "box_color": "red@0.8"},
         }

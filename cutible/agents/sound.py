@@ -9,9 +9,10 @@ Uses LLM for intelligent audio decisions when available.
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any
 
-from .base import BaseAgent, AgentMessage, MessageType
+from ..verbs_high import HighLevelVerbs
+from .base import AgentMessage, BaseAgent, MessageType
 
 
 class SoundAgent(BaseAgent):
@@ -21,7 +22,7 @@ class SoundAgent(BaseAgent):
     Output: project with audio mixed, ducked, normalized
     """
 
-    def __init__(self, name: str = "sound", llm_client: Optional[Any] = None):
+    def __init__(self, name: str = "sound", llm_client: Any | None = None):
         super().__init__(
             name=name,
             role="sound_engineer",
@@ -44,8 +45,7 @@ class SoundAgent(BaseAgent):
         editor = EditorClass(project)
         high_level = HighLevelVerbs(editor)
 
-        actions = self._apply_sound(editor, high_level, music_assets,
-                                     voice_track, target_lufs)
+        actions = self._apply_sound(editor, high_level, music_assets, voice_track, target_lufs)
 
         return self.send(
             to_agent=message.from_agent,
@@ -57,15 +57,17 @@ class SoundAgent(BaseAgent):
             reply_to=message.id,
         )
 
-    def _apply_sound(self, editor, high_level: HighLevelVerbs,
-                     music_assets: list, voice_track: str,
-                     target_lufs: float) -> list[dict]:
+    def _apply_sound(
+        self,
+        editor,
+        high_level: HighLevelVerbs,
+        music_assets: list,
+        voice_track: str,
+        target_lufs: float,
+    ) -> list[dict]:
         """Apply sound processing to the project."""
         actions = []
-        has_voice = any(
-            t.id == voice_track and t.clips
-            for t in editor.project.tracks
-        )
+        has_voice = any(t.id == voice_track and t.clips for t in editor.project.tracks)
 
         # Use LLM to determine optimal sound settings if available
         sound_params = self._plan_sound_with_llm(editor, music_assets, has_voice)
@@ -89,28 +91,25 @@ class SoundAgent(BaseAgent):
             )
             actions.append({"verb": "add_audio", "diff": diff.to_dict()})
 
-        if has_voice and any(
-            t.id == "music" and t.clips
-            for t in editor.project.tracks
-        ):
+        if has_voice and any(t.id == "music" and t.clips for t in editor.project.tracks):
             duck_level = sound_params.get("duck_level", 0.15)
             try:
-                diff = high_level.auto_ducking(voice_track, "music",
-                                               duck_level=duck_level)
+                diff = high_level.auto_ducking(voice_track, "music", duck_level=duck_level)
                 actions.append({"verb": "auto_ducking", "diff": diff.to_dict()})
             except Exception:
                 pass
 
         editor.project.globals.loudness_target = sound_params.get("lufs", target_lufs)
-        actions.append({
-            "verb": "set_loudness_target",
-            "target_lufs": sound_params.get("lufs", target_lufs),
-        })
+        actions.append(
+            {
+                "verb": "set_loudness_target",
+                "target_lufs": sound_params.get("lufs", target_lufs),
+            }
+        )
 
         return actions
 
-    def _plan_sound_with_llm(self, editor, music_assets: list,
-                              has_voice: bool) -> dict:
+    def _plan_sound_with_llm(self, editor, music_assets: list, has_voice: bool) -> dict:
         """Use LLM to determine optimal sound parameters."""
         if not self.llm or not self.llm.available:
             return {
@@ -122,12 +121,14 @@ class SoundAgent(BaseAgent):
         # Gather project context
         tracks_summary = []
         for track in editor.project.tracks:
-            tracks_summary.append({
-                "id": track.id,
-                "kind": track.kind.value,
-                "n_clips": len(track.clips),
-                "duration": track.duration,
-            })
+            tracks_summary.append(
+                {
+                    "id": track.id,
+                    "kind": track.kind.value,
+                    "n_clips": len(track.clips),
+                    "duration": track.duration,
+                }
+            )
 
         system_prompt = (
             "You are a sound engineer for video editing. Given the project "
@@ -148,8 +149,7 @@ class SoundAgent(BaseAgent):
             "Determine optimal sound parameters."
         )
 
-        result = self.llm.generate(system_prompt, user_prompt,
-                                    temperature=0.3, max_tokens=500)
+        result = self.llm.generate(system_prompt, user_prompt, temperature=0.3, max_tokens=500)
         if result is None:
             return {
                 "music_volume": 0.2,

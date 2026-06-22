@@ -6,9 +6,7 @@ Provides text search, time-range queries, and vector similarity search
 
 from __future__ import annotations
 
-from typing import Optional
-
-from .models import AssetIndex, NarrativeIndex, Shot
+from .models import Shot
 from .store import IndexStore
 
 
@@ -25,23 +23,27 @@ class IndexSearcher:
             q = query.lower()
             for seg in idx.transcript:
                 if q in seg.text.lower():
-                    results.append({
-                        "asset_id": idx.asset_id,
-                        "type": "transcript",
-                        "start": seg.start,
-                        "end": seg.end,
-                        "text": seg.text,
-                        "speaker": seg.speaker,
-                    })
+                    results.append(
+                        {
+                            "asset_id": idx.asset_id,
+                            "type": "transcript",
+                            "start": seg.start,
+                            "end": seg.end,
+                            "text": seg.text,
+                            "speaker": seg.speaker,
+                        }
+                    )
             for vd in idx.visual_descriptions:
                 if q in vd.description.lower() or q in vd.action.lower():
-                    results.append({
-                        "asset_id": idx.asset_id,
-                        "type": "visual",
-                        "start": vd.timestamp,
-                        "end": vd.timestamp + vd.duration,
-                        "text": vd.description,
-                    })
+                    results.append(
+                        {
+                            "asset_id": idx.asset_id,
+                            "type": "visual",
+                            "start": vd.timestamp,
+                            "end": vd.timestamp + vd.duration,
+                            "text": vd.description,
+                        }
+                    )
         return sorted(results, key=lambda r: r["start"])
 
     def search_semantic(self, query: str, top_k: int = 10) -> list[dict]:
@@ -51,6 +53,7 @@ class IndexSearcher:
         EmbeddingGenerator + IndexStore.store_embedding().
         """
         from ..ingest.embeddings import EmbeddingGenerator
+
         embedder = EmbeddingGenerator(provider="mock")
         query_vector = embedder.embed_text(query)
         if query_vector is None:
@@ -63,17 +66,20 @@ class IndexSearcher:
             parts = ref.split("_", 1)
             asset_id = parts[0] if parts else ref
             shot_id = parts[1] if len(parts) > 1 else ""
-            results.append({
-                "ref": ref,
-                "asset_id": asset_id,
-                "shot_id": shot_id,
-                "score": hit["score"],
-                "type": "semantic",
-            })
+            results.append(
+                {
+                    "ref": ref,
+                    "asset_id": asset_id,
+                    "shot_id": shot_id,
+                    "score": hit["score"],
+                    "type": "semantic",
+                }
+            )
         return results
 
-    def search_time_range(self, start: float, end: float,
-                          asset_id: Optional[str] = None) -> list[Shot]:
+    def search_time_range(
+        self, start: float, end: float, asset_id: str | None = None
+    ) -> list[Shot]:
         """Find all shots within a time range."""
         shots = []
         for idx in self.store.get_all_indices():
@@ -88,12 +94,14 @@ class IndexSearcher:
         for idx in self.store.get_all_indices():
             for seg in idx.transcript:
                 if seg.speaker == speaker_id:
-                    results.append({
-                        "asset_id": idx.asset_id,
-                        "start": seg.start,
-                        "end": seg.end,
-                        "text": seg.text,
-                    })
+                    results.append(
+                        {
+                            "asset_id": idx.asset_id,
+                            "start": seg.start,
+                            "end": seg.end,
+                            "text": seg.text,
+                        }
+                    )
         return sorted(results, key=lambda r: r["start"])
 
     def search_silence(self, min_duration: float = 0.5) -> list[dict]:
@@ -103,12 +111,14 @@ class IndexSearcher:
             for start, end in idx.silence_ranges:
                 dur = end - start
                 if dur >= min_duration:
-                    results.append({
-                        "asset_id": idx.asset_id,
-                        "start": start,
-                        "end": end,
-                        "duration": dur,
-                    })
+                    results.append(
+                        {
+                            "asset_id": idx.asset_id,
+                            "start": start,
+                            "end": end,
+                            "duration": dur,
+                        }
+                    )
         return sorted(results, key=lambda r: r["start"])
 
     def search_b_roll(self, query: str, min_score: float = 0.5) -> list[dict]:
@@ -124,16 +134,18 @@ class IndexSearcher:
                         or any(q in s.lower() for s in vd.subjects)
                     )
                     if matches_query or not query:
-                        results.append({
-                            "asset_id": idx.asset_id,
-                            "start": vd.timestamp,
-                            "end": vd.timestamp + vd.duration,
-                            "description": vd.description,
-                            "b_roll_score": vd.b_roll_potential,
-                        })
+                        results.append(
+                            {
+                                "asset_id": idx.asset_id,
+                                "start": vd.timestamp,
+                                "end": vd.timestamp + vd.duration,
+                                "description": vd.description,
+                                "b_roll_score": vd.b_roll_potential,
+                            }
+                        )
         return sorted(results, key=lambda r: r["b_roll_score"], reverse=True)
 
-    def find_best_segment(self, query: str, duration: float = 10.0) -> Optional[dict]:
+    def find_best_segment(self, query: str, duration: float = 10.0) -> dict | None:
         """Find the best segment matching a query for a given duration."""
         results = self.search_text(query)
         if not results:
@@ -151,7 +163,7 @@ class IndexSearcher:
                     best = r
         return best or results[0]
 
-    def get_outline(self, asset_id: Optional[str] = None) -> dict:
+    def get_outline(self, asset_id: str | None = None) -> dict:
         """Get a summary outline of indexed content."""
         indices = self.store.get_all_indices()
         if asset_id:

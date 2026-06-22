@@ -12,9 +12,8 @@ import logging
 import os
 import subprocess
 import tempfile
-from typing import Optional
 
-from ..index.models import Scene, VisualDescription, ShotType
+from ..index.models import Scene, Shot, ShotType, VisualDescription
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class VLMAnalyzer:
     through a unified interface.
     """
 
-    def __init__(self, model: str = "gemini", api_key: Optional[str] = None):
+    def __init__(self, model: str = "gemini", api_key: str | None = None):
         self.model = model
         self.api_key = api_key or os.environ.get("VLM_API_KEY", "")
         self._mock_counter = 0
@@ -45,7 +44,7 @@ class VLMAnalyzer:
                         shot.keyframe_uri = keyframe
         return descriptions
 
-    def analyze_frame(self, uri: str, timestamp: float) -> Optional[VisualDescription]:
+    def analyze_frame(self, uri: str, timestamp: float) -> VisualDescription | None:
         """Analyze a single frame at a given timestamp."""
         keyframe = self._extract_keyframe(uri, timestamp)
         if not keyframe:
@@ -53,7 +52,7 @@ class VLMAnalyzer:
         shot = Shot(id="temp", asset_id="", start=timestamp, end=timestamp + 1.0)
         return self._analyze_keyframe(keyframe, shot)
 
-    def _analyze_keyframe(self, keyframe_path: str, shot: 'Shot') -> Optional[VisualDescription]:
+    def _analyze_keyframe(self, keyframe_path: str, shot: Shot) -> VisualDescription | None:
         """Send a keyframe to the VLM for analysis."""
         try:
             prompt = self._build_analysis_prompt()
@@ -82,18 +81,23 @@ class VLMAnalyzer:
             '- "quality_score": 0-1 technical quality score\n'
         )
 
-    def _call_gemini(self, image_path: str, prompt: str) -> Optional[VisualDescription]:
+    def _call_gemini(self, image_path: str, prompt: str) -> VisualDescription | None:
         """Call Google Gemini API for visual analysis."""
         if not self.api_key:
             return None
         import urllib.request
+
         with open(image_path, "rb") as f:
             image_data = base64.b64encode(f.read()).decode()
         payload = {
-            "contents": [{"parts": [
-                {"inline_data": {"mime_type": "image/jpeg", "data": image_data}},
-                {"text": prompt},
-            ]}],
+            "contents": [
+                {
+                    "parts": [
+                        {"inline_data": {"mime_type": "image/jpeg", "data": image_data}},
+                        {"text": prompt},
+                    ]
+                }
+            ],
         }
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.api_key}"
         req = urllib.request.Request(
@@ -106,19 +110,28 @@ class VLMAnalyzer:
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         return self._parse_vlm_response(text)
 
-    def _call_openai(self, image_path: str, prompt: str) -> Optional[VisualDescription]:
+    def _call_openai(self, image_path: str, prompt: str) -> VisualDescription | None:
         """Call OpenAI GPT-4o API for visual analysis."""
         if not self.api_key:
             return None
         import urllib.request
+
         with open(image_path, "rb") as f:
             image_data = base64.b64encode(f.read()).decode()
         payload = {
             "model": "gpt-4o",
-            "messages": [{"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}},
-                {"type": "text", "text": prompt},
-            ]}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
             "max_tokens": 500,
         }
         url = "https://api.openai.com/v1/chat/completions"
@@ -135,7 +148,7 @@ class VLMAnalyzer:
         text = data["choices"][0]["message"]["content"]
         return self._parse_vlm_response(text)
 
-    def _parse_vlm_response(self, text: str) -> Optional[VisualDescription]:
+    def _parse_vlm_response(self, text: str) -> VisualDescription | None:
         """Parse VLM JSON response into VisualDescription."""
         try:
             text = text.strip()
@@ -164,7 +177,7 @@ class VLMAnalyzer:
             logger.warning(f"  Failed to parse VLM response: {e}")
             return None
 
-    def _mock_analysis(self, shot: 'Shot') -> VisualDescription:
+    def _mock_analysis(self, shot: Shot) -> VisualDescription:
         """Produce a basic analysis using ffmpeg metadata when VLM is unavailable."""
         # Try to extract basic visual info from the frame
         description = "[VLM unavailable — basic analysis]"
@@ -196,21 +209,29 @@ class VLMAnalyzer:
             quality_score=quality,
         )
 
-    def _extract_keyframe(self, uri: str, timestamp: float) -> Optional[str]:
+    def _extract_keyframe(self, uri: str, timestamp: float) -> str | None:
         """Extract a single frame from the video."""
         try:
             tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
             tmp.close()
             cmd = [
-                "ffmpeg", "-y", "-hide_banner", "-nostdin",
-                "-ss", f"{timestamp:.3f}",
-                "-i", uri,
-                "-frames:v", "1",
-                "-q:v", "2",
+                "ffmpeg",
+                "-y",
+                "-hide_banner",
+                "-nostdin",
+                "-ss",
+                f"{timestamp:.3f}",
+                "-i",
+                uri,
+                "-frames:v",
+                "1",
+                "-q:v",
+                "2",
                 tmp.name,
             ]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
-                                   encoding="utf-8", errors="replace")
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace"
+            )
             if proc.returncode == 0 and os.path.getsize(tmp.name) > 0:
                 return tmp.name
             os.unlink(tmp.name)

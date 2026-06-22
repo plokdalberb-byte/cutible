@@ -9,9 +9,8 @@ from __future__ import annotations
 import json
 import os
 import shutil
-from typing import Optional
 
-from ..schema import Project, TextLayer, TrackKind
+from ..schema import Project, TrackKind
 
 
 class RemotionCompiler:
@@ -94,7 +93,7 @@ class RemotionCompiler:
         """Generate Remotion project configured for frame-by-frame rendering."""
         result = self.generate_project(output_dir)
         config_path = os.path.join(output_dir, "src", "config.ts")
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             content = f.read()
         content = content.replace(
             "IMAGE_FORMAT: 'jpeg'",
@@ -110,13 +109,13 @@ class RemotionCompiler:
         root_ts += "export const RemotionRoot: React.FC = () => {\n"
         root_ts += "  return (\n"
         root_ts += "    <>\n"
-        root_ts += '      <Composition\n'
+        root_ts += "      <Composition\n"
         root_ts += '        id="CutibleVideo"\n'
-        root_ts += '        component={CutibleComposition}\n'
-        root_ts += f'        durationInFrames={{{int(self.p.duration * self.p.fps)}}}\n'
-        root_ts += f'        fps={{{self.p.fps}}}\n'
-        root_ts += f'        width={{{self.p.width}}}\n'
-        root_ts += f'        height={{{self.p.height}}}\n'
+        root_ts += "        component={CutibleComposition}\n"
+        root_ts += f"        durationInFrames={{{int(self.p.duration * self.p.fps)}}}\n"
+        root_ts += f"        fps={{{self.p.fps}}}\n"
+        root_ts += f"        width={{{self.p.width}}}\n"
+        root_ts += f"        height={{{self.p.height}}}\n"
         root_ts += "      />\n"
         root_ts += "    </>\n"
         root_ts += "  );\n"
@@ -155,41 +154,43 @@ class RemotionCompiler:
                     dur_frames = int(clip.src_duration * self.p.fps)
                     asset = self.p.asset(clip.asset)
                     media_file = f"media/{clip.asset}{self._get_ext(asset.uri)}"
-                    comp_ts += f'      <Sequence from={{{start_frame}}} durationInFrames={{{dur_frames}}}>\n'
-                    comp_ts += f'        <VideoClip\n'
+                    comp_ts += f"      <Sequence from={{{start_frame}}} durationInFrames={{{dur_frames}}}>\n"
+                    comp_ts += "        <VideoClip\n"
                     comp_ts += f'          src={{staticFile("{media_file}")}}\n'
-                    comp_ts += f'          srcStart={{{clip.src_in}}}\n'
-                    comp_ts += f'          srcEnd={{{clip.src_out}}}\n'
-                    comp_ts += f'          volume={{{clip.volume}}}\n'
-                    comp_ts += f'          speed={{{clip.speed}}}\n'
-                    comp_ts += f'        />\n'
-                    comp_ts += f'      </Sequence>\n'
+                    comp_ts += f"          srcStart={{{clip.src_in}}}\n"
+                    comp_ts += f"          srcEnd={{{clip.src_out}}}\n"
+                    comp_ts += f"          volume={{{clip.volume}}}\n"
+                    comp_ts += f"          speed={{{clip.speed}}}\n"
+                    comp_ts += "        />\n"
+                    comp_ts += "      </Sequence>\n"
             elif track_id.startswith("a") or track_id == "music":
                 for clip in clips:
                     start_frame = int(clip.timeline_in * self.p.fps)
                     dur_frames = int(clip.src_duration * self.p.fps)
                     asset = self.p.asset(clip.asset)
                     media_file = f"media/{clip.asset}{self._get_ext(asset.uri)}"
-                    comp_ts += f'      <Sequence from={{{start_frame}}} durationInFrames={{{dur_frames}}}>\n'
-                    comp_ts += f'        <Audio\n'
+                    comp_ts += f"      <Sequence from={{{start_frame}}} durationInFrames={{{dur_frames}}}>\n"
+                    comp_ts += "        <Audio\n"
                     comp_ts += f'          src={{staticFile("{media_file}")}}\n'
-                    comp_ts += f'          volume={{{clip.volume}}}\n'
-                    comp_ts += f'        />\n'
-                    comp_ts += f'      </Sequence>\n'
+                    comp_ts += f"          volume={{{clip.volume}}}\n"
+                    comp_ts += "        />\n"
+                    comp_ts += "      </Sequence>\n"
 
-        for track_id, texts in texts_by_track.items():
+        for _track_id, texts in texts_by_track.items():
             for text in texts:
                 start_frame = int(text.timeline_in * self.p.fps)
                 dur_frames = int(text.duration * self.p.fps)
-                comp_ts += f'      <Sequence from={{{start_frame}}} durationInFrames={{{dur_frames}}}>\n'
-                comp_ts += f'        <TextLayer\n'
+                comp_ts += (
+                    f"      <Sequence from={{{start_frame}}} durationInFrames={{{dur_frames}}}>\n"
+                )
+                comp_ts += "        <TextLayer\n"
                 comp_ts += f'          text="{text.text}"\n'
-                comp_ts += f'          fontSize={{{text.font_size}}}\n'
+                comp_ts += f"          fontSize={{{text.font_size}}}\n"
                 comp_ts += f'          fontColor="{text.font_color}"\n'
                 comp_ts += f'          x="{text.x}"\n'
                 comp_ts += f'          y="{text.y}"\n'
-                comp_ts += f"        />\n"
-                comp_ts += f"      </Sequence>\n"
+                comp_ts += "        />\n"
+                comp_ts += "      </Sequence>\n"
 
         comp_ts += "    </AbsoluteFill>\n"
         comp_ts += "  );\n"

@@ -8,15 +8,15 @@ OTIO-compatible NLEs.
 from __future__ import annotations
 
 import os
-from typing import Optional
 
 try:
     import opentimelineio as otio
+
     HAS_OTIO = True
 except ImportError:
     HAS_OTIO = False
 
-from ..schema import Project, Clip, Track, TrackKind
+from ..schema import Clip, Project, Track, TrackKind
 
 
 class OTIOExporter:
@@ -37,10 +37,14 @@ class OTIOExporter:
         timeline = self._build_timeline()
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         otio.adapters.write_to_file(timeline, output_path)
-        return {"ok": True, "output": output_path, "format": "otio",
-                "schema_version": str(otio.__version__)}
+        return {
+            "ok": True,
+            "output": output_path,
+            "format": "otio",
+            "schema_version": str(otio.__version__),
+        }
 
-    def _build_timeline(self) -> "otio.schema.Timeline":
+    def _build_timeline(self) -> otio.schema.Timeline:
         """Build an OTIO Timeline from the Cutible project."""
         timeline = otio.schema.Timeline(name=self.p.id)
         timeline.metadata["cutible"] = {
@@ -58,7 +62,7 @@ class OTIOExporter:
 
         return timeline
 
-    def _export_track(self, track: Track) -> Optional["otio.schema.Track"]:
+    def _export_track(self, track: Track) -> otio.schema.Track | None:
         """Convert a Cutible track to an OTIO Track."""
         kind_map = {
             TrackKind.video: otio.schema.TrackKind.Video,
@@ -78,7 +82,7 @@ class OTIOExporter:
 
         return otio_track if len(otio_track) > 0 else None
 
-    def _export_clip(self, clip: Clip) -> "otio.schema.Clip":
+    def _export_clip(self, clip: Clip) -> otio.schema.Clip:
         """Convert a Cutible clip to an OTIO Clip."""
         asset = self.p.asset(clip.asset)
         rate = self.p.fps
@@ -88,12 +92,8 @@ class OTIOExporter:
         )
 
         source_range = otio.opentime.TimeRange(
-            start_time=otio.opentime.RationalTime(
-                value=int(clip.src_in * rate), rate=rate
-            ),
-            duration=otio.opentime.RationalTime(
-                value=int(clip.src_duration * rate), rate=rate
-            ),
+            start_time=otio.opentime.RationalTime(value=int(clip.src_in * rate), rate=rate),
+            duration=otio.opentime.RationalTime(value=int(clip.src_duration * rate), rate=rate),
         )
 
         otio_clip = otio.schema.Clip(
@@ -115,17 +115,13 @@ class OTIOExporter:
 
         return otio_clip
 
-    def _export_text(self, text) -> "otio.schema.Clip":
+    def _export_text(self, text) -> otio.schema.Clip:
         """Convert a Cutible TextLayer to an OTIO Clip with text metadata."""
         rate = self.p.fps
 
         source_range = otio.opentime.TimeRange(
-            start_time=otio.opentime.RationalTime(
-                value=int(text.timeline_in * rate), rate=rate
-            ),
-            duration=otio.opentime.RationalTime(
-                value=int(text.duration * rate), rate=rate
-            ),
+            start_time=otio.opentime.RationalTime(value=int(text.timeline_in * rate), rate=rate),
+            duration=otio.opentime.RationalTime(value=int(text.duration * rate), rate=rate),
         )
 
         otio_clip = otio.schema.Clip(
@@ -149,6 +145,7 @@ class OTIOExporter:
     def _export_fallback(self, output_path: str) -> dict:
         """Fallback export when opentimelineio is not installed."""
         import json
+
         data = {
             "$schema": "OpenTimelineIO/0.14.0",
             "name": self.p.id,
@@ -164,5 +161,9 @@ class OTIOExporter:
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        return {"ok": True, "output": output_path, "format": "otio",
-                "warning": "fallback export (install opentimelineio for proper OTIO)"}
+        return {
+            "ok": True,
+            "output": output_path,
+            "format": "otio",
+            "warning": "fallback export (install opentimelineio for proper OTIO)",
+        }

@@ -8,16 +8,15 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass, field
-from typing import Optional, Protocol
+from dataclasses import dataclass
 
 from ..index.models import AssetIndex, NarrativeIndex
 from ..index.store import IndexStore
-from .scenes import SceneDetector
-from .audio_transcribe import AudioTranscriber
-from .vlm import VLMAnalyzer
 from .audio_analysis import AudioAnalyzer
+from .audio_transcribe import AudioTranscriber
 from .embeddings import EmbeddingGenerator
+from .scenes import SceneDetector
+from .vlm import VLMAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +28,9 @@ class IngestConfig:
     proxy_width: int = 480
     proxy_fps: int = 1
     whisper_model: str = "base"
-    whisper_language: Optional[str] = None
+    whisper_language: str | None = None
     vlm_model: str = "gemini"
-    vlm_api_key: Optional[str] = None
+    vlm_api_key: str | None = None
     embedding_provider: str = "clip"
     embedding_dim: int = 512
     index_dir: str = ".cutible/index"
@@ -46,10 +45,10 @@ class IngestResult:
 
     asset_id: str
     uri: str
-    index: Optional[AssetIndex] = None
-    error: Optional[str] = None
-    proxy_path: Optional[str] = None
-    keyframes_dir: Optional[str] = None
+    index: AssetIndex | None = None
+    error: str | None = None
+    proxy_path: str | None = None
+    keyframes_dir: str | None = None
 
     @property
     def success(self) -> bool:
@@ -79,7 +78,7 @@ class IngestPipeline:
         narrative = pipeline.build_narrative("project_1")
     """
 
-    def __init__(self, config: Optional[IngestConfig] = None):
+    def __init__(self, config: IngestConfig | None = None):
         self.config = config or IngestConfig()
         self.store = IndexStore(self.config.index_dir)
         self.scene_detector = SceneDetector()
@@ -97,8 +96,9 @@ class IngestPipeline:
             dim=self.config.embedding_dim,
         )
 
-    def ingest_asset(self, asset_id: str, uri: str,
-                     duration_hint: Optional[float] = None) -> IngestResult:
+    def ingest_asset(
+        self, asset_id: str, uri: str, duration_hint: float | None = None
+    ) -> IngestResult:
         """Run the full ingest pipeline on a single media file."""
         logger.info(f"Starting ingest for {asset_id}: {uri}")
         result = IngestResult(asset_id=asset_id, uri=uri)
@@ -125,18 +125,18 @@ class IngestPipeline:
             )
 
             # Stage 2: scene detection
-            logger.info(f"  Detecting scenes...")
+            logger.info("  Detecting scenes...")
             scenes = self.scene_detector.detect(uri, asset_id)
             index.scenes = scenes
 
             # Stage 3: transcription
-            logger.info(f"  Transcribing audio...")
+            logger.info("  Transcribing audio...")
             transcript = self.transcriber.transcribe(uri)
             index.transcript = transcript
 
             # Stage 4: VLM analysis (optional)
             if not self.config.skip_vlm:
-                logger.info(f"  Running VLM analysis...")
+                logger.info("  Running VLM analysis...")
                 visual_descs = self.vlm.analyze_scenes(uri, scenes)
                 index.visual_descriptions = visual_descs
                 for scene in index.scenes:
@@ -146,7 +146,7 @@ class IngestPipeline:
                                 shot.visual = vd
 
             # Stage 5: audio analysis
-            logger.info(f"  Analyzing audio...")
+            logger.info("  Analyzing audio...")
             audio_features = self.audio_analyzer.analyze(uri)
             index.audio_features = audio_features
             beats = self.audio_analyzer.detect_beats(uri)
@@ -157,21 +157,23 @@ class IngestPipeline:
             index.silence_ranges = silences
 
             # Stage 6: speaker diarization (via transcriber)
-            logger.info(f"  Diarizing speakers...")
+            logger.info("  Diarizing speakers...")
             speakers = self.transcriber.diarize(uri)
             index.speakers = speakers
 
             # Stage 7: embeddings (optional)
             if not self.config.skip_embeddings:
-                logger.info(f"  Generating embeddings...")
+                logger.info("  Generating embeddings...")
                 embedding_refs = self.embedder.index_asset(uri, index)
                 index.embedding_refs = embedding_refs
 
             # Store the completed index
             self.store.store_asset_index(index)
             result.index = index
-            logger.info(f"  Ingest complete: {len(index.scenes)} scenes, "
-                        f"{len(index.transcript)} transcript segments")
+            logger.info(
+                f"  Ingest complete: {len(index.scenes)} scenes, "
+                f"{len(index.transcript)} transcript segments"
+            )
 
         except Exception as e:
             logger.error(f"  Ingest failed: {e}")
@@ -189,14 +191,16 @@ class IngestPipeline:
     def build_narrative(self, project_id: str) -> NarrativeIndex:
         """Build cross-asset narrative index from all ingested assets."""
         narrative = self.store.build_narrative(project_id)
-        logger.info(f"Built narrative index: {narrative.total_duration:.1f}s "
-                    f"across {len(narrative.asset_indices)} assets")
+        logger.info(
+            f"Built narrative index: {narrative.total_duration:.1f}s "
+            f"across {len(narrative.asset_indices)} assets"
+        )
         return narrative
 
-    def get_index(self, asset_id: str) -> Optional[AssetIndex]:
+    def get_index(self, asset_id: str) -> AssetIndex | None:
         return self.store.load_asset_index(asset_id)
 
-    def get_narrative(self) -> Optional[NarrativeIndex]:
+    def get_narrative(self) -> NarrativeIndex | None:
         return self.store.load_narrative()
 
     def _extract_metadata(self, uri: str) -> dict:
@@ -205,12 +209,19 @@ class IngestPipeline:
         import subprocess
 
         cmd = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", "-show_streams", uri,
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            uri,
         ]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
-                                   encoding="utf-8", errors="replace")
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace"
+            )
             if proc.returncode != 0:
                 return {}
             info = json.loads(proc.stdout)

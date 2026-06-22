@@ -13,26 +13,23 @@ Provides HTTP endpoints for:
 
 from __future__ import annotations
 
-import json
 import os
-import tempfile
-from typing import Any, Optional
 
 try:
-    from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks
+    from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import JSONResponse
     from pydantic import BaseModel
+
     HAS_FASTAPI = True
 except ImportError:
     HAS_FASTAPI = False
 
+from ..compiler import FFmpegCompiler
 from ..schema import Project
 from ..verbs import Editor
-from ..compiler import FFmpegCompiler
-
 
 if HAS_FASTAPI:
+
     class ProjectCreate(BaseModel):
         id: str
         fps: int = 30
@@ -74,12 +71,10 @@ def _verify_api_key(request: Request) -> bool:
     return True
 
 
-def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
+def create_app(title: str = "Cutible API", version: str = "0.1.0") -> FastAPI:
     """Create and configure the FastAPI application."""
     if not HAS_FASTAPI:
-        raise ImportError(
-            "FastAPI is required: pip install 'cutible[api]'"
-        )
+        raise ImportError("FastAPI is required: pip install 'cutible[api]'")
 
     app = FastAPI(title=title, version=version)
 
@@ -99,10 +94,10 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
         with open(path, "w", encoding="utf-8") as f:
             f.write(editor.project.model_dump_json(indent=2))
 
-    def _load_project(project_id: str) -> Optional[Editor]:
+    def _load_project(project_id: str) -> Editor | None:
         path = os.path.join(project_dir, f"{project_id}.json")
         if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 project = Project.model_validate_json(f.read())
             return Editor(project)
         return None
@@ -113,8 +108,13 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
 
     @app.post("/projects")
     def create_project(req: ProjectCreate, _: bool = Depends(_verify_api_key)):
-        project = Project(id=req.id, fps=req.fps, width=req.width, height=req.height,
-                          provenance={"prompt": req.prompt} if req.prompt else {})
+        project = Project(
+            id=req.id,
+            fps=req.fps,
+            width=req.width,
+            height=req.height,
+            provenance={"prompt": req.prompt} if req.prompt else {},
+        )
         editor = Editor(project)
         _save_project(req.id, editor)
         return {"created": req.id, "summary": editor.project.summary()}
@@ -130,16 +130,14 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
         return {"loaded": project.id, "summary": project.summary()}
 
     @app.get("/projects/{project_id}")
-    def read_project(project_id: str, zoom: str = "outline",
-                     _: bool = Depends(_verify_api_key)):
+    def read_project(project_id: str, zoom: str = "outline", _: bool = Depends(_verify_api_key)):
         editor = _load_project(project_id)
         if not editor:
             raise HTTPException(404, f"Project {project_id!r} not found")
         return editor.project.view(zoom)
 
     @app.post("/projects/{project_id}/verbs")
-    def apply_verb(project_id: str, req: VerbRequest,
-                   _: bool = Depends(_verify_api_key)):
+    def apply_verb(project_id: str, req: VerbRequest, _: bool = Depends(_verify_api_key)):
         editor = _load_project(project_id)
         if not editor:
             raise HTTPException(404, f"Project {project_id!r} not found")
@@ -148,18 +146,22 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
             _save_project(project_id, editor)
             return diff.to_dict()
         except Exception as e:
-            raise HTTPException(400, detail=str(e))
+            raise HTTPException(400, detail=str(e)) from e
 
     @app.post("/projects/{project_id}/render")
-    def render_project(project_id: str, req: RenderRequest,
-                       background_tasks: BackgroundTasks,
-                       _: bool = Depends(_verify_api_key)):
+    def render_project(
+        project_id: str,
+        req: RenderRequest,
+        background_tasks: BackgroundTasks,
+        _: bool = Depends(_verify_api_key),
+    ):
         editor = _load_project(project_id)
         if not editor:
             raise HTTPException(404, f"Project {project_id!r} not found")
-        compiler = FFmpegCompiler(editor.project)
+        FFmpegCompiler(editor.project)
         if req.run_qc:
             from ..qc import run_qc
+
             report = run_qc(req.output, expected_duration=editor.project.duration)
             return {"output": req.output, "qc": report.to_dict()}
         return {"output": req.output, "duration": editor.project.duration}
@@ -167,12 +169,14 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
     @app.post("/qc")
     def run_qc_endpoint(body: dict, _: bool = Depends(_verify_api_key)):
         from ..qc import run_qc
+
         report = run_qc(body["file"], expected_duration=body.get("expected_duration"))
         return report.to_dict()
 
     @app.post("/ingest")
     def ingest_asset(req: IngestRequest, _: bool = Depends(_verify_api_key)):
         from ..ingest import IngestPipeline
+
         pipeline = IngestPipeline()
         result = pipeline.ingest_asset(req.asset_id, req.uri)
         return result.to_dict()
@@ -180,7 +184,9 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
     @app.post("/agent/run")
     def run_agent(req: AgentRequest, _: bool = Depends(_verify_api_key)):
         import os as _os
+
         from ..agents.orchestrator import Orchestrator
+
         openai_key = _os.environ.get("OPENAI_API_KEY")
         openai_base = _os.environ.get("OPENAI_BASE_URL")
         openai_model = _os.environ.get("OPENAI_MODEL")
@@ -201,6 +207,7 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
     @app.get("/index/{project_id}/narrative")
     def get_narrative(project_id: str, _: bool = Depends(_verify_api_key)):
         from ..index import IndexStore
+
         index_dir = os.environ.get("CUTIBLE_INDEX_DIR", ".cutible/index")
         store = IndexStore(index_dir)
         narrative = store.load_narrative()
@@ -210,7 +217,8 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
 
     @app.get("/index/search")
     def search_index(q: str, _: bool = Depends(_verify_api_key)):
-        from ..index import IndexStore, IndexSearcher
+        from ..index import IndexSearcher, IndexStore
+
         index_dir = os.environ.get("CUTIBLE_INDEX_DIR", ".cutible/index")
         store = IndexStore(index_dir)
         searcher = IndexSearcher(store)
@@ -218,9 +226,9 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
         return {"results": results, "count": len(results)}
 
     @app.get("/projects/{project_id}/otio")
-    def export_otio(project_id: str, output_path: str,
-                    _: bool = Depends(_verify_api_key)):
+    def export_otio(project_id: str, output_path: str, _: bool = Depends(_verify_api_key)):
         from ..otio_bridge import OTIOExporter
+
         editor = _load_project(project_id)
         if not editor:
             raise HTTPException(404, f"Project {project_id!r} not found")
@@ -229,9 +237,9 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
         return result
 
     @app.post("/projects/{project_id}/otio/import")
-    def import_otio(project_id: str, body: dict,
-                    _: bool = Depends(_verify_api_key)):
+    def import_otio(project_id: str, body: dict, _: bool = Depends(_verify_api_key)):
         from ..otio_bridge import OTIOImporter
+
         otio_path = body.get("otio_path", "")
         if not otio_path or not os.path.exists(otio_path):
             raise HTTPException(400, f"OTIO file not found: {otio_path}")
@@ -242,9 +250,9 @@ def create_app(title: str = "Cutible API", version: str = "0.1.0") -> "FastAPI":
         return {"imported": otio_path, "summary": project.summary()}
 
     @app.post("/projects/{project_id}/render-farm")
-    def render_farm(project_id: str, body: dict,
-                    _: bool = Depends(_verify_api_key)):
+    def render_farm(project_id: str, body: dict, _: bool = Depends(_verify_api_key)):
         from ..render_farm import RenderFarmManager
+
         editor = _load_project(project_id)
         if not editor:
             raise HTTPException(404, f"Project {project_id!r} not found")

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 from ..index.models import SpeakerProfile, TranscriptSegment
 
@@ -19,16 +18,16 @@ logger = logging.getLogger(__name__)
 class Diarizer:
     """Speaker diarization with pyannote fallback to energy heuristic."""
 
-    def __init__(self, provider: str = "pyannote",
-                 pyannote_token: Optional[str] = None):
+    def __init__(self, provider: str = "pyannote", pyannote_token: str | None = None):
         self.provider = provider
         self.pyannote_token = pyannote_token or os.environ.get(
             "PYANNOTE_TOKEN", os.environ.get("HF_TOKEN", "")
         )
         self._pipeline = None
 
-    def diarize(self, audio_path: str,
-                segments: list[TranscriptSegment]) -> list[TranscriptSegment]:
+    def diarize(
+        self, audio_path: str, segments: list[TranscriptSegment]
+    ) -> list[TranscriptSegment]:
         """Assign speaker labels to existing transcript segments.
 
         Tries pyannote first, falls back to energy heuristic.
@@ -42,15 +41,16 @@ class Diarizer:
 
         return self._diarize_energy_heuristic(segments)
 
-    def _diarize_pyannote(self, audio_path: str,
-                           segments: list[TranscriptSegment]) -> list[TranscriptSegment]:
+    def _diarize_pyannote(
+        self, audio_path: str, segments: list[TranscriptSegment]
+    ) -> list[TranscriptSegment]:
         """Real diarization using pyannote.audio Pipeline."""
         try:
             from pyannote.audio import Pipeline
-        except ImportError:
+        except ImportError as err:
             raise ImportError(
                 "pyannote.audio required: pip install 'cutible[diarization]'"
-            )
+            ) from err
 
         if self._pipeline is None:
             self._pipeline = Pipeline.from_pretrained(
@@ -67,14 +67,13 @@ class Diarizer:
 
         # Assign speakers to segments based on overlap
         for seg in segments:
-            seg.speaker = self._find_dominant_speaker(
-                seg.start, seg.end, speaker_timeline
-            )
+            seg.speaker = self._find_dominant_speaker(seg.start, seg.end, speaker_timeline)
 
         return segments
 
-    def _find_dominant_speaker(self, start: float, end: float,
-                                timeline: list[tuple[float, float, str]]) -> str:
+    def _find_dominant_speaker(
+        self, start: float, end: float, timeline: list[tuple[float, float, str]]
+    ) -> str:
         """Find the speaker with the most overlap for a time range."""
         speaker_times: dict[str, float] = {}
         for t_start, t_end, speaker in timeline:
@@ -88,8 +87,9 @@ class Diarizer:
             return "unknown"
         return max(speaker_times, key=speaker_times.get)
 
-    def _diarize_energy_heuristic(self,
-                                   segments: list[TranscriptSegment]) -> list[TranscriptSegment]:
+    def _diarize_energy_heuristic(
+        self, segments: list[TranscriptSegment]
+    ) -> list[TranscriptSegment]:
         """Energy-based heuristic: group consecutive segments by pause gaps.
 
         When there's a significant gap (>0.8s) between segments,

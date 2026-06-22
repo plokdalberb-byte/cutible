@@ -6,14 +6,11 @@ filtergraph, render it, and return the output path.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import subprocess
-import tempfile
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +74,7 @@ class RenderWorker:
     def __init__(self, worker_id: str = "local"):
         self.worker_id = worker_id
         self.status = WorkerStatus.IDLE
-        self._current_task: Optional[SegmentTask] = None
+        self._current_task: SegmentTask | None = None
 
     def render_segment(self, task: SegmentTask) -> SegmentResult:
         """Render a segment of the timeline."""
@@ -85,8 +82,8 @@ class RenderWorker:
         self._current_task = task
 
         try:
-            from ..schema import Project
             from ..compiler import FFmpegCompiler
+            from ..schema import Project
 
             project = Project.model_validate_json(task.project_json)
             compiler = FFmpegCompiler(project)
@@ -96,16 +93,22 @@ class RenderWorker:
             compiled = compiler.build()
             rs = project.render_settings
             cmd = self._build_segment_command(
-                compiled, rs, task.segment_start, task.segment_end,
+                compiled,
+                rs,
+                task.segment_start,
+                task.segment_end,
                 task.output_path,
             )
 
-            logger.info(f"Worker {self.worker_id}: rendering segment "
-                        f"{task.segment_index} [{task.segment_start:.1f}s - "
-                        f"{task.segment_end:.1f}s]")
+            logger.info(
+                f"Worker {self.worker_id}: rendering segment "
+                f"{task.segment_index} [{task.segment_start:.1f}s - "
+                f"{task.segment_end:.1f}s]"
+            )
 
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600,
-                                   encoding="utf-8", errors="replace")
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=600, encoding="utf-8", errors="replace"
+            )
             if proc.returncode != 0:
                 tail = "\n".join(proc.stderr.strip().splitlines()[-20:])
                 self.status = WorkerStatus.FAILED
@@ -136,8 +139,9 @@ class RenderWorker:
                 error=str(e),
             )
 
-    def _build_segment_command(self, compiled, rs, start: float,
-                                end: float, output: str) -> list[str]:
+    def _build_segment_command(
+        self, compiled, rs, start: float, end: float, output: str
+    ) -> list[str]:
         """Build ffmpeg command for a specific segment."""
         cmd = ["ffmpeg", "-y", "-hide_banner", "-nostdin"]
         for inp in compiled.inputs:
@@ -147,18 +151,28 @@ class RenderWorker:
             cmd += ["-map", m]
         duration = end - start
         cmd += [
-            "-ss", f"{start:.6f}",
-            "-t", f"{duration:.6f}",
-            "-r", str(compiled.fps),
-            "-c:v", rs.vcodec, "-preset", rs.preset, "-crf", str(rs.crf),
-            "-pix_fmt", rs.pix_fmt,
+            "-ss",
+            f"{start:.6f}",
+            "-t",
+            f"{duration:.6f}",
+            "-r",
+            str(compiled.fps),
+            "-c:v",
+            rs.vcodec,
+            "-preset",
+            rs.preset,
+            "-crf",
+            str(rs.crf),
+            "-pix_fmt",
+            rs.pix_fmt,
         ]
         if compiled.has_audio:
-            cmd += ["-c:a", rs.acodec, "-b:a", rs.audio_bitrate,
-                    "-ar", str(rs.audio_rate)]
+            cmd += ["-c:a", rs.acodec, "-b:a", rs.audio_bitrate, "-ar", str(rs.audio_rate)]
         cmd += [
-            "-map_metadata", "-1",
-            "-movflags", "+faststart",
+            "-map_metadata",
+            "-1",
+            "-movflags",
+            "+faststart",
             output,
         ]
         return cmd

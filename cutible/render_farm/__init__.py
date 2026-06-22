@@ -6,7 +6,7 @@ remote worker backends.
 """
 
 from .manager import RenderFarmManager
-from .worker import RenderWorker
 from .scheduler import TaskScheduler
+from .worker import RenderWorker
 
 __all__ = ["RenderFarmManager", "RenderWorker", "TaskScheduler"]

@@ -9,9 +9,10 @@ Uses LLM for intelligent clip selection and timing when available.
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any
 
-from .base import BaseAgent, AgentMessage, MessageType
+from ..verbs_high import HighLevelVerbs
+from .base import AgentMessage, BaseAgent, MessageType
 
 
 class EditorAgent(BaseAgent):
@@ -21,7 +22,7 @@ class EditorAgent(BaseAgent):
     Output: assembled timeline (project state)
     """
 
-    def __init__(self, name: str = "editor", llm_client: Optional[Any] = None):
+    def __init__(self, name: str = "editor", llm_client: Any | None = None):
         super().__init__(
             name=name,
             role="editor",
@@ -39,10 +40,7 @@ class EditorAgent(BaseAgent):
         from ..verbs import Editor as EditorClass
         from ..verbs_high import HighLevelVerbs
 
-        if project_data:
-            project = Project.model_validate(project_data)
-        else:
-            project = Project(id="agent_edit")
+        project = Project.model_validate(project_data) if project_data else Project(id="agent_edit")
 
         editor = EditorClass(project)
         high = HighLevelVerbs(editor)
@@ -60,8 +58,9 @@ class EditorAgent(BaseAgent):
             reply_to=message.id,
         )
 
-    def _execute_plan(self, editor, high_level: HighLevelVerbs,
-                      plan: dict, narrative: dict) -> list[dict]:
+    def _execute_plan(
+        self, editor, high_level: HighLevelVerbs, plan: dict, narrative: dict
+    ) -> list[dict]:
         """Execute the edit plan step by step."""
         actions = []
         segments = plan.get("segments", [])
@@ -78,8 +77,9 @@ class EditorAgent(BaseAgent):
                 if uri:
                     editor.add_asset(asset_id, "video", uri=uri, duration=duration)
                 else:
-                    editor.add_asset(asset_id, "color", color="gray",
-                                    duration=duration if duration else 10.0)
+                    editor.add_asset(
+                        asset_id, "color", color="gray", duration=duration if duration else 10.0
+                    )
 
         # Use LLM to refine clip selection if available
         if self.llm and self.llm.available and narrative_assets:
@@ -103,31 +103,39 @@ class EditorAgent(BaseAgent):
                 src_end = segment.get("src_end", src_start + duration)
 
                 diff = editor.add_clip(
-                    "v_main", source_asset,
+                    "v_main",
+                    source_asset,
                     src_in=src_start,
                     src_out=src_end,
                     timeline_in=start,
-                    rationale=segment.get("rationale",
-                        f"{seg_type}: {segment.get('description', '')}"),
+                    rationale=segment.get(
+                        "rationale", f"{seg_type}: {segment.get('description', '')}"
+                    ),
                 )
-                actions.append({
-                    "verb": "add_clip",
-                    "segment": segment.get("description"),
-                    "diff": diff.to_dict(),
-                })
+                actions.append(
+                    {
+                        "verb": "add_clip",
+                        "segment": segment.get("description"),
+                        "diff": diff.to_dict(),
+                    }
+                )
 
             # Add captions if provided
             captions = plan.get("captions", [])
             for cap in captions:
                 if cap.get("start", 0) >= start and cap.get("end", end) <= end:
                     diff = editor.add_text_layer(
-                        "captions", cap["text"],
-                        cap.get("start", start), cap.get("end", end),
+                        "captions",
+                        cap["text"],
+                        cap.get("start", start),
+                        cap.get("end", end),
                     )
-                    actions.append({
-                        "verb": "add_text_layer",
-                        "diff": diff.to_dict(),
-                    })
+                    actions.append(
+                        {
+                            "verb": "add_text_layer",
+                            "diff": diff.to_dict(),
+                        }
+                    )
 
         # Add transitions between clips
         track = editor.project.track("v_main")
@@ -137,11 +145,9 @@ class EditorAgent(BaseAgent):
 
         return actions
 
-    def _refine_with_llm(self, plan: dict,
-                         narrative_assets: list) -> Optional[list[dict]]:
+    def _refine_with_llm(self, plan: dict, narrative_assets: list) -> list[dict] | None:
         """Use LLM to refine clip selection and timing."""
-        assets_summary = json.dumps(narrative_assets[:5], indent=2,
-                                     default=str)[:3000]
+        assets_summary = json.dumps(narrative_assets[:5], indent=2, default=str)[:3000]
         plan_summary = json.dumps(plan, indent=2, default=str)[:2000]
 
         system_prompt = (
@@ -163,8 +169,7 @@ class EditorAgent(BaseAgent):
             "Refine the clip selections with specific time ranges."
         )
 
-        result = self.llm.generate(system_prompt, user_prompt,
-                                    temperature=0.5, max_tokens=2000)
+        result = self.llm.generate(system_prompt, user_prompt, temperature=0.5, max_tokens=2000)
         if result is None:
             return None
 
