@@ -1,5 +1,9 @@
 # Cutible — Agent-Native Montage Engine
 
+[![CI](https://github.com/plokdalberb-byte/cutible/actions/workflows/ci.yml/badge.svg)](https://github.com/plokdalberb-byte/cutible/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
 > A headless video-editing engine whose primary **operator is an AI agent**, not a
 > human with a mouse. The agent reads the project as data, calls editing *verbs*,
 > renders deterministically, and inspects the result through a QC loop — then
