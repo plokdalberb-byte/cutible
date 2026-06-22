@@ -73,10 +73,9 @@ ignore = [
     "SIM115",   # tempfile.NamedTemporaryFile pattern is intentional
     "B905",     # zip strict= not needed here
 ]
-per-file-ignores = {
-    "cutible/ingest/embeddings.py" = ["F401"],  # torch imported for CLIP
-    "cutible/render_farm/remote.py" = ["F401"],  # fastapi try-import
-}
+[tool.ruff.lint.per-file-ignores]
+"cutible/ingest/embeddings.py" = ["F401"]
+"cutible/render_farm/remote.py" = ["F401"]
 
 [tool.mypy]
 python_version = "3.10"
